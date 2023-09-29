@@ -261,7 +261,7 @@ def build(req: dict, job=None):
             podman,
             image,
             [
-                "bash",
+                "sh",
                 "-c",
                 (
                     "env;"
