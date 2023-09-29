@@ -319,8 +319,6 @@ def build(req: dict, job=None):
 
     log.debug("JSON content %s", json_content)
 
-    job.connection.sadd(f"builds:{version_code}:{req['target']}", req["request_hash"])
-
     # Increment stats
     job.connection.hincrby(
         "stats:builds",
