@@ -223,10 +223,6 @@ def api_v1_build_post():
     job = get_queue().fetch_job(request_hash)
     response = {}
     status = 200
-    result_ttl = "7d"
-    if req.get("defaults"):
-        result_ttl = "1h"
-    failure_ttl = "12h"
 
     if "client" in req:
         redis_client().hincrby("stats:clients", req["client"])
@@ -250,12 +246,17 @@ def api_v1_build_post():
         req["repository_allow_list"] = current_app.config["REPOSITORY_ALLOW_LIST"]
         req["request_hash"] = request_hash
 
+        if req.get("defaults"):
+            result_ttl = "1h"
+        else:
+            result_ttl = "7d"
+
         job = get_queue().enqueue(
             build,
             req,
             job_id=request_hash,
             result_ttl=result_ttl,
-            failure_ttl=failure_ttl,
+            failure_ttl="12h",
             job_timeout="10m",
         )
     else:
