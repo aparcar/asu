@@ -4,7 +4,6 @@ from pathlib import Path
 import connexion
 from flask import Flask, render_template, send_from_directory
 from pkg_resources import resource_filename
-from prometheus_client import CollectorRegistry, make_wsgi_app
 from rq import Queue
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from yaml import safe_load
@@ -48,7 +47,6 @@ def create_app(test_config: dict = None) -> Flask:
                 print(f"Loading {config_file}")
                 app.config.from_pyfile(config_file)
                 break
-        app.config["REGISTRY"] = CollectorRegistry()
     else:
         app.config.from_mapping(test_config)
 
@@ -63,10 +61,6 @@ def create_app(test_config: dict = None) -> Flask:
 
         with open(app.config["BRANCHES_FILE"], "r") as branches:
             app.config["BRANCHES"] = safe_load(branches)["branches"]
-
-    app.wsgi_app = DispatcherMiddleware(
-        app.wsgi_app, {"/metrics": make_wsgi_app(app.config["REGISTRY"])}
-    )
 
     (Path().cwd()).mkdir(exist_ok=True, parents=True)
 
@@ -89,11 +83,7 @@ def create_app(test_config: dict = None) -> Flask:
 
     app.register_blueprint(api.bp)
 
-    from . import metrics
-
     redis_client = get_redis_client(app.config)
-
-    app.config["REGISTRY"].register(metrics.BuildCollector(redis_client))
 
     branches = dict(
         map(

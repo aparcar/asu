@@ -85,11 +85,8 @@ def test_path():
 
 @pytest.fixture
 def app(mocked_redis, test_path):
-    registry = prometheus_client.CollectorRegistry(auto_describe=True)
-
     mock_app = create_app(
         {
-            "REGISTRY": registry,
             "ASYNC_QUEUE": False,
             "PUBLIC_PATH": test_path,
             "REDIS_URL": "foobar",
@@ -166,11 +163,8 @@ def app(mocked_redis, test_path):
 
 @pytest.fixture
 def app_using_branches_yml(mocked_redis, test_path):
-    registry = prometheus_client.CollectorRegistry(auto_describe=True)
-
     mock_app = create_app(
         {
-            "REGISTRY": registry,
             "ASYNC_QUEUE": False,
             "PUBLIC_PATH": test_path,
             "CACHE_PATH": test_path,
@@ -185,11 +179,8 @@ def app_using_branches_yml(mocked_redis, test_path):
 
 @pytest.fixture
 def app_using_default_branches(mocked_redis, test_path):
-    registry = prometheus_client.CollectorRegistry(auto_describe=True)
-
     mock_app = create_app(
         {
-            "REGISTRY": registry,
             "ASYNC_QUEUE": False,
             "PUBLIC_PATH": test_path,
             "CACHE_PATH": test_path,
