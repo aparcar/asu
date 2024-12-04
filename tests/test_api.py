@@ -178,8 +178,8 @@ def test_api_build_request_hash(client):
         profile="testprofile",
     )
 
-    case12hash = "8731372f84b0022c070e6127bad24eb2"
-    case34hash = "0dab3b60bd8174da250e2ea2942a3744"
+    case12hash = "8d8e0aa2fd95bb75dba4aff4279dd6f976a40ad17300927d54b8a9a9b0576306"
+    case34hash = "6b1645013216da39ee09deae75b87b0636f3c50648b037750b0a80448ce5c7ca"
 
     # Case 1 - diff_packages=True, first package ordering
     json["diff_packages"] = True
@@ -702,7 +702,10 @@ def test_api_build_defaults_filled_allowed(app):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["request_hash"] == "c9836b2259eec0c3a31868fe77a19983"
+    assert (
+        data["request_hash"]
+        == "9c8d0cd7d9ec208a233b954edb20c3c20b5c11103bb7f5f1ebface565f8c6720"
+    )
 
 
 def test_api_build_defaults_filled_too_big(app):

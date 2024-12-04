@@ -245,7 +245,7 @@ def build(build_request: BuildRequest, job=None):
         "image",
         f"PROFILE={build_request.profile}",
         f"PACKAGES={' '.join(build_cmd_packages)}",
-        f"EXTRA_IMAGE_NAME={packages_hash}",
+        f"EXTRA_IMAGE_NAME={packages_hash[:12]}",
         f"BIN_DIR=/builder/{request_hash}",
     ]
 

@@ -22,9 +22,6 @@ import redis
 from asu.build_request import BuildRequest
 from asu.config import settings
 
-
-REQUEST_HASH_LENGTH: int = 32
-
 log: logging.Logger = logging.getLogger("rq.worker")
 log.propagate = False  # Suppress duplicate log messages.
 
@@ -66,18 +63,16 @@ def get_branch(version_or_branch: str) -> dict[str, str]:
     return {**settings.branches.get(branch_name, {}), "name": branch_name}
 
 
-def get_str_hash(string: str, length: int = REQUEST_HASH_LENGTH) -> str:
+def get_str_hash(string: str) -> str:
     """Return sha256sum of str with optional length
 
     Args:
         string (str): input string
-        length (int): hash length
 
     Returns:
         str: hash of string with specified length
     """
-    h = hashlib.sha256(bytes(string or "", "utf-8"))
-    return h.hexdigest()[:length]
+    return hashlib.sha256(bytes(string or "", "utf-8")).hexdigest()
 
 
 def get_file_hash(path: str) -> str:
@@ -145,7 +140,6 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 str(build_request.repositories),
             ]
         ),
-        REQUEST_HASH_LENGTH,
     )
 
 
@@ -161,7 +155,7 @@ def get_packages_hash(packages: list[str]) -> str:
     Returns:
         str: hash of `req`
     """
-    return get_str_hash(" ".join(sorted(list(set(packages)))), 12)
+    return get_str_hash(" ".join(sorted(list(set(packages)))))
 
 
 def fingerprint_pubkey_usign(pubkey: str) -> str:
