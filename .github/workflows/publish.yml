@@ -24,11 +24,10 @@ jobs:
           pip install poetry
 
       - name: Set __version__ and poetry version
-        if: github.event_name == 'release'
         run: |
-          TAG="$(git describe --tags --abbrev=0)"
-          echo "__version__ = \"${TAG##*v}\"" > asu/__init__.py
-          poetry version "${TAG##*v}"
+          TAG="$(git describe --tags --always | awk -F"-" '{if (NF>1) {print substr($1, 2)".post"$2} else {print substr($1, 2)}}')"
+          echo "__version__ = \"$TAG\"" > asu/__init__.py
+          poetry version "$TAG"
 
       - name: Build and publish
         if: github.event_name == 'release'
