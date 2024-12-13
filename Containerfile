@@ -11,4 +11,6 @@ RUN poetry config virtualenvs.create false \
 
 COPY ./asu/ ./asu/
 
+RUN cat /app/asu/__init__.py
+
 CMD uvicorn --host 0.0.0.0 'asu.main:app'
