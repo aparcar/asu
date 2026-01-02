@@ -13,12 +13,15 @@ from podman import errors
 
 from asu.build_request import BuildRequest
 from asu.config import settings
-from asu.package_changes import apply_package_changes
+from asu.package_selection import (
+    get_default_packages,
+    get_profile_packages,
+    calculate_package_selection,
+    validate_package_manifest,
+)
 from asu.util import (
     add_timestamp,
     add_build_event,
-    check_manifest,
-    diff_packages,
     fingerprint_pubkey_usign,
     get_branch,
     get_container_version_tag,
@@ -206,30 +209,14 @@ def _build(build_request: BuildRequest, job=None):
                 f"Received incorrect version {version_code} (requested {requested})",
             )
 
-    default_packages = set(
-        re.search(r"Default Packages: (.*)\n", job.meta["stdout"]).group(1).split()
-    )
+    default_packages = get_default_packages(job.meta["stdout"])
     log.debug(f"Default packages: {default_packages}")
 
-    profile_packages = set(
-        re.search(
-            r"{}:\n    .+\n    Packages: (.*?)\n".format(build_request.profile),
-            job.meta["stdout"],
-            re.MULTILINE,
-        )
-        .group(1)
-        .split()
+    profile_packages = get_profile_packages(job.meta["stdout"], build_request.profile)
+
+    build_cmd_packages = calculate_package_selection(
+        build_request, default_packages, profile_packages
     )
-
-    apply_package_changes(build_request)
-
-    build_cmd_packages = build_request.packages
-
-    if build_request.diff_packages:
-        build_cmd_packages: list[str] = diff_packages(
-            build_request.packages, default_packages | profile_packages
-        )
-        log.debug(f"Diffed packages: {build_cmd_packages}")
 
     job.meta["imagebuilder_status"] = "validate_manifest"
     job.save_meta()
@@ -262,7 +249,7 @@ def _build(build_request: BuildRequest, job=None):
     log.debug(f"Manifest: {manifest}")
 
     # Check if all requested packages are in the manifest
-    if err := check_manifest(manifest, build_request.packages_versions):
+    if err := validate_package_manifest(manifest, build_request.packages_versions):
         report_error(job, err)
 
     packages_hash: str = get_packages_hash(manifest.keys())

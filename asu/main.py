@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from asu import __version__
 from asu.config import settings
-from asu.routers import api, stats
+from asu.routers import api, packages, stats
 from asu.util import (
     client_get,
     get_branch,
@@ -29,6 +29,7 @@ base_path = Path(__file__).resolve().parent
 
 app = FastAPI()
 app.include_router(api.router, prefix="/api/v1")
+app.include_router(packages.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 
 (settings.public_path / "store").mkdir(parents=True, exist_ok=True)
