@@ -1,0 +1,33 @@
+# Containerfile for Build Service
+# Heavy service for firmware image building
+# Requires Redis, RQ, Podman, and ImageBuilder
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for build service
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install all dependencies including build tools
+COPY pyproject.toml poetry.lock ./
+RUN pip install poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --only main --no-root --no-interaction --no-ansi && \
+    rm -rf ~/.cache/pypoetry
+
+# Copy all source files (build service needs everything)
+COPY asu/ asu/
+COPY misc/ misc/
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV ASU_SERVICE=build
+
+# Expose port for build service
+EXPOSE 8000
+
+# Run build service (or worker)
+CMD ["uvicorn", "asu.main:app", "--host", "0.0.0.0", "--port", "8000"]

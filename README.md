@@ -77,6 +77,43 @@ For security reasons each build happens inside a container so that one build
 can't affect another build. For this to work a Podman container runs an API
 service so workers can themselfs execute builds inside containers.
 
+### Microservices Architecture
+
+ASU can be deployed as independent microservices that run in separate containers:
+
+1. **Prepare Service** (Lightweight)
+   - Handles `/api/v1/build/prepare` endpoint
+   - Package resolution and validation only
+   - No heavy dependencies (Redis, Podman, ImageBuilder)
+   - Fast, stateless, can scale horizontally
+   - Minimal resource requirements (512MB RAM, 0.5 CPU)
+
+2. **Build Service** (Heavy)
+   - Handles `/api/v1/build` endpoint
+   - Actual firmware image building
+   - Requires Redis, RQ, Podman, ImageBuilder
+   - Resource-intensive (4GB+ RAM, 4+ CPU cores)
+   - Can scale workers independently
+
+**Benefits:**
+- **Cost Efficiency**: Run many prepare instances cheaply, fewer build instances
+- **Better Performance**: Prepare requests don't wait for build resources
+- **Independent Scaling**: Scale each service based on demand
+- **Resource Isolation**: Build failures don't affect prepare service
+- **Deployment Flexibility**: Deploy services on different infrastructure
+
+**Deployment Options:**
+
+```bash
+# Option 1: Monolithic (current, all-in-one)
+podman-compose up -d
+
+# Option 2: Microservices (separate containers)
+podman-compose -f podman-compose.microservices.yml up -d
+```
+
+See `podman-compose.microservices.yml` and `Containerfile.prepare` / `Containerfile.build` for microservices configuration.
+
 ### Installation
 
 The server uses `podman-compose` to manage the containers. On a Debian based
