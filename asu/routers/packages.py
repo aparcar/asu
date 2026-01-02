@@ -52,7 +52,7 @@ def api_v1_packages_select(
     request: Request,
     package_request: PackageSelectionRequest,
     response: Response,
-) -> PackageSelectionResponse:
+):
     """Calculate package selection for a given profile and package list.
 
     This endpoint determines what packages will be included in a build without
