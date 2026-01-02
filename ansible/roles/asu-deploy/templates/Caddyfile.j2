@@ -1,0 +1,41 @@
+{
+    # Global options
+{% if caddy_domain %}
+    email admin@{{ caddy_domain }}
+{% else %}
+    auto_https off
+{% endif %}
+}
+
+{% if caddy_domain %}
+{{ caddy_domain }} {
+{% else %}
+:80 {
+{% endif %}
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+
+    # Enable compression
+    encode gzip
+
+    # Route /api/v1/build/prepare to prepare service
+    handle /api/v1/build/prepare* {
+        reverse_proxy localhost:8001 {
+            health_uri /
+            health_interval 10s
+            health_timeout 5s
+        }
+    }
+
+    # Route everything else to build service
+    handle {
+        reverse_proxy localhost:8000 {
+            health_uri /json/v1/overview.json
+            health_interval 10s
+            health_timeout 5s
+        }
+    }
+}

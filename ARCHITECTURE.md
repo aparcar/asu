@@ -1,456 +1,347 @@
 # ASU Microservices Architecture
 
-This document describes the microservices architecture for ASU (Attended Sysupgrade Server).
-
 ## Overview
 
-ASU has been designed to support two deployment models:
+ASU uses a true microservices architecture where services are **completely independent** with **NO shared code**. Services communicate only via HTTP.
 
-1. **Monolithic** - All services in one container (backward compatible)
-2. **Microservices** - Independent services in separate containers (new)
-
-## Architecture Diagram
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Load Balancer (Nginx)                    │
-│                                                                   │
-│  /api/v1/build/prepare → Prepare Service                        │
-│  /api/v1/build → Build Service                                   │
-└─────────────────────────────────────────────────────────────────┘
-                           │                    │
-        ┌──────────────────┘                    └─────────────────┐
-        │                                                          │
-        ▼                                                          ▼
-┌─────────────────┐                                  ┌─────────────────┐
-│ Prepare Service │                                  │  Build Service  │
-│  (Lightweight)  │                                  │     (Heavy)     │
-├─────────────────┤                                  ├─────────────────┤
-│ • Stateless     │                                  │ • Stateful      │
-│ • No Redis      │                                  │ • Redis + RQ    │
-│ • No Podman     │                                  │ • Podman access │
-│ • CPU: 0.5      │                                  │ • CPU: 4+       │
-│ • RAM: 512MB    │                                  │ • RAM: 4GB+     │
-│ • Fast response │                                  │                 │
-└─────────────────┘                                  └─────────────────┘
-        │                                                      │
-        │                                                      │
-        │                                                      ▼
-        │                                            ┌─────────────────┐
-        │                                            │  Redis Stack    │
-        │                                            │  (Queue + Cache)│
-        │                                            └─────────────────┘
-        │                                                      │
-        │                                                      │
-        │                                                      ▼
-        │                                            ┌─────────────────┐
-        │                                            │     Workers     │
-        │                                            │  (Podman+IB)    │
-        │                                            │   Scalable      │
-        │                                            └─────────────────┘
-        │
-        └─────────────── Shared Libraries ──────────────────────┘
-                    (Models, Validation, Package Logic)
+┌──────────────────────────────────────────────────────────┐
+│                    Load Balancer                          │
+│  /api/v1/build/prepare → asu-prepare:8001               │
+│  /api/v1/build →         asu:8000                        │
+└──────────────────────────────────────────────────────────┘
+            │                              │
+            ▼                              ▼
+   ┌────────────────┐           ┌────────────────┐
+   │ asu-prepare/   │◄──HTTP────│ asu/           │
+   │ (Separate repo)│           │ (Main repo)    │
+   ├────────────────┤           ├────────────────┤
+   │ • FastAPI      │           │ • FastAPI      │
+   │ • Pydantic     │           │ • Redis/RQ     │
+   │ • Package      │           │ • Podman       │
+   │   resolution   │           │ • ImageBuilder │
+   │ • 512MB RAM    │           │ • 4GB+ RAM     │
+   │ • 0.5 CPU      │           │ • 4+ CPU       │
+   └────────────────┘           └────────────────┘
+                                        │
+                                        ├─ Redis
+                                        └─ Workers (scalable)
 ```
 
 ## Services
 
-### 1. Prepare Service
+### 1. Prepare Service (`asu-prepare/`)
 
-**Purpose:** Lightweight service for package resolution and request validation.
+**Purpose:** Lightweight package resolution and validation.
 
-**Responsibilities:**
-- Validate build requests
-- Apply package changes/migrations
-- Track what packages will be modified
-- Return prepared request for user approval
-- NO actual building
+**Location:** `asu-prepare/` directory (separate codebase)
 
-**Dependencies:**
-- `asu.build_request` (BuildRequest model)
-- `asu.package_resolution` (PackageResolver)
-- `asu.package_changes` (apply_package_changes)
-- `asu.util` (validation utilities)
-- FastAPI (minimal)
-
-**No Dependencies on:**
-- ❌ Redis/RQ
-- ❌ Podman
-- ❌ ImageBuilder
-- ❌ Build infrastructure
-
-**Characteristics:**
-- **Stateless**: No persistent state
-- **Fast**: Sub-second response times
-- **Scalable**: Can run many instances cheaply
-- **Independent**: Runs without build infrastructure
-
-**Container:**
-- Image: `Containerfile.prepare`
-- Port: 8001
-- Resources: 0.5 CPU, 512MB RAM
-
-**API Endpoints:**
-- `POST /api/v1/build/prepare`
-
-### 2. Build Service
-
-**Purpose:** Heavy service for actual firmware image compilation.
-
-**Responsibilities:**
-- Accept build requests (raw or prepared)
-- Manage build queue (Redis/RQ)
-- Execute builds in Podman containers
-- Cache results
-- Serve firmware images
-- Collect statistics
+**Files:**
+- `main.py` - FastAPI app
+- `build_request.py` - Data models
+- `package_changes.py` - Migration logic
+- `package_resolution.py` - Resolution algorithm
+- `config.py` - Minimal config
+- `Containerfile` - Container definition
 
 **Dependencies:**
-- `asu.build` (build firmware)
-- `asu.build_request` (BuildRequest model)
-- `asu.util` (queue management, Redis)
-- Redis (queue + cache)
-- RQ (job queue)
-- Podman (container management)
-- ImageBuilder (firmware compilation)
+- FastAPI, Uvicorn, Pydantic
+- NO Redis, NO Podman, NO build tools
 
-**Characteristics:**
-- **Stateful**: Manages queue and cache
-- **Resource-Intensive**: Requires significant CPU/RAM
-- **Slower**: Build can take minutes
-- **Complex**: Many dependencies
+**API:**
+- `POST /api/v1/prepare` - Resolve packages
 
-**Container:**
-- Image: `Containerfile.build`
-- Port: 8000
-- Resources: 4+ CPU, 4GB+ RAM
+**Communication:**
+- **Receives:** HTTP requests from clients or build service
+- **Returns:** JSON with resolved packages
 
-**API Endpoints:**
-- `POST /api/v1/build`
-- `GET /api/v1/build/{hash}`
-- `GET /api/v1/stats`
-- All other endpoints
+**Resources:**
+- CPU: 0.5 cores
+- RAM: 512MB
+- Response time: <1s
 
-### 3. Shared Libraries
+### 2. Build Service (`asu/`)
 
-Both services share common code but don't share runtime state:
+**Purpose:** Heavy firmware building service.
 
-**Shared Modules:**
-- `asu/build_request.py` - Request model (Pydantic)
-- `asu/package_changes.py` - Package migration logic
-- `asu/package_resolution.py` - Resolution algorithm
-- `asu/config.py` - Configuration
-- `asu/util.py` - Utility functions
+**Location:** `asu/` directory (main codebase)
 
-**Key Design Principle:**
-- Services share **code** (Python modules)
-- Services **do not** share **runtime state** (no shared memory, no IPC)
-- Communication only via HTTP API or shared database (Redis)
+**Dependencies:**
+- Everything from original ASU
+- **PLUS** httpx for calling prepare service
 
-## Deployment Models
+**Communication:**
+- **Calls:** Prepare service via HTTP for package resolution
+- **Uses:** Redis for queue/cache
+- **Uses:** Podman for builds
 
-### Monolithic Deployment (Default)
+**Modified Files:**
+- `asu/routers/api.py` - Proxies prepare requests via HTTP
+- `asu/config.py` - Added `prepare_service_url` setting
 
-```bash
-podman-compose up -d
+## Communication Flow
+
+### Prepare Request
+
+```
+Client
+  ↓ POST /api/v1/build/prepare
+Build Service (asu/)
+  ↓ HTTP POST /api/v1/prepare
+Prepare Service (asu-prepare/)
+  ↓ Package resolution
+Build Service
+  ↓ Add cache info
+Client
 ```
 
-All services run in the same container:
-- ✅ Simple setup
-- ✅ Easier to manage
-- ❌ Less scalable
-- ❌ Resource inefficient
+### Build Request (Direct)
 
-### Microservices Deployment (Recommended for Production)
+```
+Client
+  ↓ POST /api/v1/build
+Build Service
+  ↓ Apply package changes locally
+  ↓ Queue build job
+Workers
+  ↓ Build firmware
+Client
+```
+
+### Build Request (Prepared)
+
+```
+Client
+  ↓ POST /api/v1/build/prepare
+Prepare Service
+  ↓ Return resolved packages
+Client (user approval)
+  ↓ POST /api/v1/build?skip_package_resolution=true
+Build Service
+  ↓ Queue build (no package changes)
+Workers
+  ↓ Build firmware
+Client
+```
+
+## Key Design Principles
+
+### 1. No Shared Code
+
+- Each service has its OWN copy of necessary files
+- NO `from asu.X import Y` between services
+- Communication ONLY via HTTP
+
+**Benefits:**
+- Can deploy/version independently
+- No dependency conflicts
+- Clear service boundaries
+- Could rewrite in different language
+
+### 2. HTTP-Only Communication
+
+Services communicate via HTTP, not Python imports:
+
+```python
+# Build service calling prepare service
+async with httpx.AsyncClient() as client:
+    response = await client.post(
+        "http://asu-prepare:8001/api/v1/prepare",
+        json=build_request.model_dump()
+    )
+```
+
+### 3. Independent Deployment
+
+Each service can be deployed separately:
+
+```bash
+# Deploy only prepare service
+cd asu-prepare
+podman build -t asu-prepare .
+podman run -p 8001:8001 asu-prepare
+
+# Deploy only build service
+cd ..
+podman build -t asu-build .
+podman run -p 8000:8000 asu-build
+```
+
+## Deployment
+
+### Microservices (Recommended)
 
 ```bash
 podman-compose -f podman-compose.microservices.yml up -d
 ```
 
-Services run in separate containers:
-- ✅ Independent scaling
-- ✅ Better resource utilization
-- ✅ Fault isolation
-- ✅ Can deploy on different infrastructure
-- ❌ More complex setup
-- ❌ Requires load balancer
+**Services Started:**
+- `asu-prepare` - Prepare service (port 8001)
+- `asu-build` - Build service (port 8000)
+- `asu-worker` - Build workers (scalable)
+- `redis` - Queue and cache
+- `nginx` - Load balancer (optional)
 
-## Scaling Strategies
+### Monolithic (Backward Compatible)
+
+```bash
+podman-compose up -d
+```
+
+All functionality in one container (original behavior).
+
+## Scaling
 
 ### Horizontal Scaling
 
-**Prepare Service:**
 ```bash
+# Scale prepare service (cheap, lightweight)
 podman-compose -f podman-compose.microservices.yml up -d --scale prepare=5
-```
-- Run 5 prepare instances
-- Load balanced by Nginx
-- Handle 5x more prepare requests
 
-**Build Workers:**
-```bash
+# Scale build workers (expensive, heavy)
 podman-compose -f podman-compose.microservices.yml up -d --scale worker=10
 ```
-- Run 10 build workers
-- All pull from same Redis queue
-- Build 10 images in parallel
 
 ### Resource Allocation
 
-Recommended resource allocation per service:
-
-| Service | Instances | CPU/instance | RAM/instance | Total Resources |
-|---------|-----------|--------------|--------------|-----------------|
+| Service | Instances | CPU/each | RAM/each | Total |
+|---------|-----------|----------|----------|-------|
 | Prepare | 5 | 0.5 | 512MB | 2.5 CPU, 2.5GB |
-| Build   | 1 | 4 | 4GB | 4 CPU, 4GB |
+| Build | 1 | 4 | 4GB | 4 CPU, 4GB |
 | Workers | 4 | 2 | 2GB | 8 CPU, 8GB |
-| Redis   | 1 | 1 | 1GB | 1 CPU, 1GB |
+| Redis | 1 | 1 | 1GB | 1 CPU, 1GB |
 | **Total** | **11** | - | - | **15.5 CPU, 15.5GB** |
 
-Compare to monolithic (all-in-one):
-- 1 instance, 8 CPU, 8GB
-- Can only handle 1 build + limited prepare requests
+## Configuration
 
-## Communication Patterns
+### Environment Variables
 
-### Client → Prepare Service
+**Prepare Service:**
+- `UPSTREAM_URL` - OpenWrt downloads URL
 
-```
-Client → Nginx → Prepare Service → Response
-```
+**Build Service:**
+- `PREPARE_SERVICE_URL` - Prepare service URL (default: `http://asu-prepare:8001`)
+- `REDIS_URL` - Redis connection string
+- All existing ASU variables
 
-1. Client sends prepare request
-2. Nginx routes to prepare service
-3. Prepare validates and resolves packages
-4. Returns prepared request immediately
+### Service Discovery
 
-**Latency:** <1 second
+Build service finds prepare service via:
+1. Environment variable `PREPARE_SERVICE_URL`
+2. Default: `http://asu-prepare:8001` (container name)
 
-### Client → Build Service (Direct)
+## Migration Path
 
-```
-Client → Nginx → Build Service → Redis → Worker → Response
-```
+### From Monolithic
 
-1. Client sends build request
-2. Nginx routes to build service
-3. Build service enqueues job
-4. Worker picks up job
-5. Returns job status
+1. Deploy microservices alongside monolithic
+2. Route prepare requests to new service
+3. Monitor and test
+4. Gradually shift build requests
+5. Decommission monolithic
 
-**Latency:** Minutes (async)
+### Code Duplication
 
-### Client → Build Service (Prepared)
+Yes, there is code duplication (BuildRequest model, package logic). This is **intentional**:
 
-```
-Client → Prepare Service → (approval) → Build Service
-```
+- **Pros:** Complete independence, separate versioning, no coupling
+- **Cons:** Updates must be made to both services
 
-1. Client calls prepare
-2. User reviews changes
-3. Client calls build with prepared request
-4. Build skips resolution, starts building
+**Philosophy:** Prefer duplication over coupling for microservices.
 
-**Benefits:**
-- User sees changes before building
-- Faster build start (no resolution)
-- Better UX
+## Benefits
 
-## Data Flow
+✅ **True Independence:** Services can be developed separately
+✅ **Technology Freedom:** Could rewrite prepare in Go, Rust, etc.
+✅ **Easy Scaling:** Scale services independently based on load
+✅ **Clear Boundaries:** HTTP API is the contract
+✅ **Fault Isolation:** Prepare failure doesn't affect builds
+✅ **Resource Efficiency:** Run many cheap prepare instances
 
-### Request Preparation
+## Drawbacks
 
-```
-BuildRequest (raw)
-    ↓
-PrepareService.prepare()
-    ↓
-PackageResolver.resolve()
-    ↓
-apply_package_changes()
-    ↓
-BuildRequest (prepared) + changes list
-```
+❌ **Code Duplication:** Models and logic duplicated
+❌ **Network Overhead:** HTTP calls vs. function calls
+❌ **Complexity:** More moving parts
+❌ **Consistency:** Updates must be synchronized
 
-### Build Execution
+## When to Use
 
-```
-BuildRequest (raw or prepared)
-    ↓
-BuildService.build()
-    ↓
-validate_request() [if not prepared]
-    ↓
-get_request_hash()
-    ↓
-check Redis cache
-    ↓
-enqueue to RQ
-    ↓
-Worker: build_firmware()
-    ↓
-Podman: ImageBuilder
-    ↓
-Store result in Redis + filesystem
-```
+**Use Microservices When:**
+- High traffic (>1000 prepares/day)
+- Need independent scaling
+- Different teams own services
+- Want deployment flexibility
 
-## Security Considerations
+**Use Monolithic When:**
+- Small deployment (<100 builds/day)
+- Single admin
+- Simplicity preferred
+- Limited resources
+
+## Testing
 
 ### Prepare Service
 
-- ✅ Minimal attack surface (no Podman, no Redis)
-- ✅ Stateless (no persistent data to compromise)
-- ✅ Input validation only
-- ⚠️ Could be DDoS target (rate limit recommended)
+```bash
+cd asu-prepare
+poetry run pytest
+```
 
 ### Build Service
 
-- ✅ Containerized builds (Podman isolation)
-- ✅ No new privileges in containers
-- ✅ Separate from prepare (blast radius limited)
-- ⚠️ Requires Podman socket access
-- ⚠️ Resource-intensive (DoS risk)
-
-### Network Isolation
-
-Recommended network topology:
-```
-Internet
-    ↓
-Nginx (public)
-    ↓
-    ├─ Prepare Service (internal network)
-    └─ Build Service (internal network)
-            ↓
-            Redis (internal network, no external access)
-            Podman (local socket)
+```bash
+cd ..
+poetry run pytest
 ```
 
-## Monitoring & Observability
+### Integration Testing
 
-### Metrics
+```bash
+# Start both services
+podman-compose -f podman-compose.microservices.yml up -d
 
-**Prepare Service:**
-- Request rate
-- Response time (should be <1s)
-- Error rate
-- Package changes per request
+# Test prepare
+curl -X POST http://localhost:8001/api/v1/prepare \
+  -H "Content-Type: application/json" \
+  -d '{"version":"24.10.0","target":"ath79/generic","profile":"test","packages":["luci","auc"]}'
 
-**Build Service:**
-- Queue length
-- Build duration
-- Success/failure rate
-- Cache hit rate
-- Resource utilization
+# Test build calling prepare
+curl -X POST http://localhost:8000/api/v1/build/prepare \
+  -H "Content-Type: application/json" \
+  -d '{"version":"24.10.0","target":"ath79/generic","profile":"test","packages":["luci"]}'
+```
+
+## Monitoring
 
 ### Health Checks
 
 ```bash
 # Prepare service
-curl http://prepare:8001/health
+curl http://asu-prepare:8001/health
 
 # Build service
-curl http://build:8000/health
+curl http://asu-build:8000/health
 ```
 
-### Logs
+### Metrics
 
-Both services log to stdout (container-friendly):
-```bash
-docker logs asu-prepare
-docker logs asu-build
-docker logs asu-worker-1
-```
-
-## Migration Path
-
-### From Monolithic to Microservices
-
-1. **Deploy microservices alongside monolithic**
-   ```bash
-   # Keep monolithic running
-   podman-compose up -d
-
-   # Start microservices on different ports
-   podman-compose -f podman-compose.microservices.yml up -d
-   ```
-
-2. **Configure load balancer to route traffic**
-   - `/api/v1/build/prepare` → microservices
-   - `/api/v1/build` → monolithic (initially)
-
-3. **Test prepare service**
-   - Monitor error rates
-   - Verify package resolution works
-
-4. **Gradually shift build traffic**
-   - Route 10% of builds to microservices
-   - Monitor performance
-   - Increase to 100%
-
-5. **Decommission monolithic**
-   ```bash
-   podman-compose down
-   ```
+Each service exposes metrics independently:
+- Request count
+- Response time
+- Error rate
+- Resource usage
 
 ## Future Enhancements
 
-### Potential Additional Services
+1. **Service Mesh:** Istio/Linkerd for advanced routing
+2. **gRPC:** Replace HTTP JSON with gRPC for performance
+3. **Event Bus:** Redis Streams or RabbitMQ for async communication
+4. **API Gateway:** Kong or similar for centralized routing
+5. **Separate Languages:** Rewrite prepare in Go for performance
 
-1. **Metadata Service**
-   - Handle `/json/v1/*` endpoints
-   - Serve version/target/profile data
-   - Can be separate from build
+## Summary
 
-2. **Cache Service**
-   - Dedicated service for cache management
-   - Could use external CDN
-   - Reduce build service load
-
-3. **Stats Service**
-   - Handle analytics endpoints
-   - Time-series database
-   - Separate from build queue
-
-### Service Mesh
-
-For very large deployments:
-- Istio/Linkerd for service mesh
-- Automatic retry/circuit breaking
-- Distributed tracing
-- mTLS between services
-
-## Troubleshooting
-
-### Prepare Service Issues
-
-**Slow responses:**
-- Check if validation data is cached
-- Monitor CPU usage
-- Scale horizontally
-
-**Validation errors:**
-- Check upstream availability
-- Verify version data is up-to-date
-
-### Build Service Issues
-
-**Queue backing up:**
-- Scale workers horizontally
-- Check Podman resource limits
-- Monitor ImageBuilder availability
-
-**Cache misses:**
-- Verify Redis is running
-- Check Redis memory limits
-- Review cache TTL settings
-
-## Conclusion
-
-The microservices architecture provides:
-- **Flexibility**: Deploy services independently
-- **Scalability**: Scale components based on demand
-- **Reliability**: Isolate failures
-- **Efficiency**: Optimize resource allocation
-
-Choose monolithic for simplicity, microservices for production scale.
+ASU uses true microservices with complete code separation. Services communicate only via HTTP, enabling independent development, deployment, and scaling.

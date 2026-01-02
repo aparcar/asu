@@ -1,0 +1,20 @@
+[Unit]
+Description=ASU Podman Compose Application
+Requires=podman.service
+After=network-online.target podman.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User={{ asu_user }}
+Group={{ asu_group }}
+WorkingDirectory={{ asu_app_dir }}
+Environment="PUBLIC_PATH={{ public_path }}"
+Environment="CONTAINER_SOCKET_PATH={{ container_socket_path }}"
+
+ExecStart=/usr/bin/podman-compose up -d
+ExecStop=/usr/bin/podman-compose down
+
+[Install]
+WantedBy=multi-user.target

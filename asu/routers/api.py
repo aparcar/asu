@@ -1,18 +1,21 @@
 import logging
 from typing import Union
 
+import httpx
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import RedirectResponse, Response
 from rq.job import Job
 
+from asu.build import build
 from asu.build_request import BuildRequest
 from asu.config import settings
-from asu.services.prepare_service import get_prepare_service
-from asu.services.build_service import get_build_service
 from asu.util import (
+    add_timestamp,
+    add_build_event,
     client_get,
     get_branch,
     get_queue,
+    get_request_hash,
     reload_profiles,
     reload_targets,
     reload_versions,
@@ -181,42 +184,6 @@ def return_job_v1(job: Job) -> tuple[dict, int, dict]:
     return response, response["status"], headers
 
 
-@router.post("/build/prepare")
-def api_v1_build_prepare(
-    build_request: BuildRequest,
-    response: Response,
-    request: Request,
-):
-    """
-    Prepare a build request without executing it.
-
-    This endpoint runs in the lightweight prepare service which can be
-    deployed independently from the build service.
-
-    This endpoint:
-    1. Validates the request
-    2. Applies package changes based on version/target/profile
-    3. Returns the final package list and changes for user approval
-    4. Does NOT queue a build job
-
-    The prepared request can be sent to /build with skip_package_resolution=true
-    to build exactly what was prepared.
-    """
-    # Use the independent prepare service
-    prepare_service = get_prepare_service(request.app)
-    result = prepare_service.prepare(build_request)
-
-    # Handle error responses
-    if "status" in result and result["status"] != "prepared":
-        response.status_code = result["status"]
-
-    # Note: Cache checking removed from prepare service as it requires Redis.
-    # Cache checking is now only in the build service.
-    # Clients should call build endpoint to check cache availability.
-
-    return result
-
-
 @router.head("/build/{request_hash}")
 @router.get("/build/{request_hash}")
 def api_v1_build_get(request: Request, request_hash: str, response: Response) -> dict:
@@ -247,10 +214,6 @@ def api_v1_build_post(
     """
     Build a firmware image.
 
-    This endpoint runs in the heavy build service which requires Redis,
-    RQ, Podman, and ImageBuilder. It can be deployed independently from
-    the prepare service.
-
     Args:
         build_request: The build request parameters
         skip_package_resolution: If True, skip package resolution (used when
@@ -260,7 +223,19 @@ def api_v1_build_post(
     and skips package changes/migrations. This should be used when calling
     /build after /build/prepare.
     """
-    # Determine client identifier
+    # Sanitize the profile in case the client did not (bug in older LuCI app).
+    build_request.profile = build_request.profile.replace(",", "_")
+
+    add_build_event("requests")
+
+    request_hash: str = get_request_hash(build_request)
+    job: Job = get_queue().fetch_job(request_hash)
+    status: int = 200
+    result_ttl: str = settings.build_ttl
+    if build_request.defaults:
+        result_ttl = settings.build_defaults_ttl
+    failure_ttl: str = settings.build_failure_ttl
+
     if build_request.client:
         client = build_request.client
     elif user_agent and user_agent.startswith("auc"):
@@ -268,22 +243,49 @@ def api_v1_build_post(
     else:
         client = "unknown/0"
 
-    # Use the independent build service
-    build_service = get_build_service(request.app)
-    result = build_service.build(
-        build_request,
-        skip_package_resolution=skip_package_resolution,
-        client=client,
+    add_timestamp(
+        f"stats:clients:{client}",
+        {"stats": "clients", "client": client},
     )
 
-    # Extract headers if present
-    headers = result.pop("headers", {})
+    if job is None:
+        add_build_event("cache-misses")
+
+        # Only validate if not already prepared
+        # Prepared requests have already been validated
+        if not skip_package_resolution:
+            content, status = validate_request(request.app, build_request)
+            if content:
+                response.status_code = status
+                return content
+
+        job_queue_length = len(get_queue())
+        if job_queue_length > settings.max_pending_jobs:
+            response.status_code = 529
+            return {
+                "status": 529,  # "Site is overloaded"
+                "title": "Server overloaded",
+                "detail": f"server overload, queue contains too many build requests: {job_queue_length}",
+            }
+
+        job = get_queue().enqueue(
+            build,
+            build_request,
+            skip_package_resolution=skip_package_resolution,
+            job_id=request_hash,
+            result_ttl=result_ttl,
+            failure_ttl=failure_ttl,
+            job_timeout=settings.job_timeout,
+        )
+    else:
+        if job.is_finished:
+            add_build_event("cache-hits")
+
+    content, status, headers = return_job_v1(job)
     response.headers.update(headers)
+    response.status_code = status
 
-    # Set status code
-    response.status_code = result.get("status", 200)
-
-    return result
+    return content
 
 
 @router.get("/stats")

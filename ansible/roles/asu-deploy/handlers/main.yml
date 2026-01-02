@@ -1,0 +1,21 @@
+---
+- name: Rebuild and restart containers
+  ansible.builtin.command:
+    cmd: podman-compose up -d --build
+    chdir: "{{ asu_app_dir }}"
+  become: true
+  become_user: "{{ asu_user }}"
+  environment:
+    PUBLIC_PATH: "{{ public_path }}"
+    CONTAINER_SOCKET_PATH: "{{ container_socket_path }}"
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+- name: Reload Caddy
+  ansible.builtin.systemd:
+    name: caddy
+    state: reloaded
+  become: true

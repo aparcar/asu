@@ -1,81 +1,110 @@
+# Podman Compose for Microservices Architecture
+# Completely independent prepare and build services with NO shared code
+
+version: '3'
+
 services:
-  server:
-    image: "docker.io/openwrt/asu:latest"
+  # Lightweight prepare service (SEPARATE CODEBASE in asu-prepare/)
+  # Only handles package resolution and validation
+  # No Redis, No Podman, No shared code with build service
+  prepare:
+    build:
+      context: ./asu-prepare
+      dockerfile: Containerfile
+    container_name: asu-prepare
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - UPSTREAM_URL=${UPSTREAM_URL:-https://downloads.openwrt.org}
+    restart: unless-stopped
+    networks:
+      - asu-network
+    # Minimal resources for lightweight service
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # Heavy build service (SEPARATE CODEBASE in asu/)
+  # Handles actual firmware building
+  # Calls prepare service via HTTP
+  # Requires Redis, RQ, Podman access
+  build:
     build:
       context: .
       dockerfile: Containerfile
-    restart: unless-stopped
-    command: uvicorn --host 0.0.0.0 asu.main:app
-    env_file: .env
-    environment:
-      REDIS_URL: "redis://redis:6379/0"
-    volumes:
-      - $PUBLIC_PATH/store:$PUBLIC_PATH/store:ro
+    container_name: asu-build
     ports:
       - "127.0.0.1:8000:8000"
+    environment:
+      - PUBLIC_PATH=/var/lib/asu/public
+      - REDIS_URL=redis://redis:6379
+      - UPSTREAM_URL=${UPSTREAM_URL:-https://downloads.openwrt.org}
+      - PREPARE_SERVICE_URL=http://asu-prepare:8001
+      - ALLOW_DEFAULTS=${ALLOW_DEFAULTS:-0}
+    volumes:
+      - ${PUBLIC_PATH:-./public}:/var/lib/asu/public
+    restart: unless-stopped
     depends_on:
       - redis
+      - prepare
+    networks:
+      - asu-network
+    # More resources for heavy service
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
 
+  # Redis for build service only
+  # Prepare service doesn't need it
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: asu-redis
+    ports:
+      - "6379:6379"
+    # volumes:
+    #   - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - asu-network
+
+  # Worker for build service
+  # Can scale independently
   worker:
-    image: "docker.io/openwrt/asu:latest"
     build:
       context: .
       dockerfile: Containerfile
-    restart: unless-stopped
-    command: rqworker --logging_level INFO
-    env_file: .env
+    container_name: asu-worker
+    command: ["rq", "worker"]
     environment:
-      REDIS_URL: "redis://redis:6379/0"
+      - PUBLIC_PATH=/var/lib/asu/public
+      - REDIS_URL=redis://redis:6379
+      - UPSTREAM_URL=${UPSTREAM_URL:-https://downloads.openwrt.org}
+      - PREPARE_SERVICE_URL=http://asu-prepare:8001
     volumes:
-      - $PUBLIC_PATH:$PUBLIC_PATH:rw
+      - ${PUBLIC_PATH:-./public}:/var/lib/asu/public
       - $CONTAINER_SOCKET_PATH:$CONTAINER_SOCKET_PATH:rw
+    restart: unless-stopped
     depends_on:
       - redis
+      - build
+      - prepare
+    networks:
+      - asu-network
+    deploy:
+      mode: replicated
+      replicas: 1  # Can scale workers independently
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
 
-  redis:
-    image: "docker.io/redis/redis-stack-server"
-    restart: unless-stopped
-    volumes:
-      - ./redis-data:/data/:rw
-    ports:
-      - "127.0.0.1:6379:6379"
+networks:
+  asu-network:
+    driver: bridge
 
-  # Optionally add more workers
-  # worker2:
-  #   image: "docker.io/openwrt/asu:latest"
-  #   restart: unless-stopped
-  #   command: rqworker --logging_level INFO
-  #   env_file: .env
-  #   environment:
-  #    REDIS_URL: "redis://redis:6379/0"
-  #   volumes:
-  #     - $PUBLIC_PATH:$PUBLIC_PATH:rw
-  #     - $CONTAINER_SOCKET_PATH:$CONTAINER_SOCKET_PATH:rw
-  #   depends_on:
-  #     - redis
-  #
-  # Optionally add a Squid cache container when using `SQUID_CACHE`
-  # squid:
-  #   image: "docker.io/ubuntu/squid:latest"
-  #   restart: unless-stopped
-  #   ports:
-  #     - "127.0.0.1:3128:3128"
-  #   volumes:
-  #     - ".squid.conf:/etc/squid/conf.d/snippet.conf:ro"
-  #     - "./squid-data/:/var/spool/squid/:rw"
-
-  # Optionally add a Grafana container when using `SERVER_STATS`
-  # grafana:
-  #   image: docker.io/grafana/grafana-oss
-  #   container_name: grafana
-  #   restart: unless-stopped
-  #   ports:
-  #     - "127.0.0.1:3000:3000"
-  #   depends_on:
-  #     - redis
-  #   environment:
-  #     GF_SERVER_DOMAIN: sysupgrade.openwrt.org
-  #     GF_SERVER_ROOT_URL: https://sysupgrade.openwrt.org/stats/
-  #     GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-  #   volumes:
-  #     - ./grafana-data:/var/lib/grafana
+volumes:
+  redis-data:

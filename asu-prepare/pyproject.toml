@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "asu-prepare"
+version = "1.0.0"
+description = "ASU Prepare Service - Lightweight package resolution microservice"
+authors = ["OpenWrt Community"]
+readme = "README.md"
+packages = [{include = "*"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.119.0"
+uvicorn = "^0.37.0"
+pydantic = "^2.12.0"
+pydantic-settings = "^2.7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+httpx = "^0.28.1"
+ruff = "^0.14.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"

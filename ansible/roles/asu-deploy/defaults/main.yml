@@ -1,0 +1,30 @@
+---
+# Default variables for asu-deploy role
+
+# User configuration
+asu_user: asu
+asu_group: asu
+asu_home: /home/asu
+asu_repository: https://github.com/openwrt/asu.git
+asu_branch: main
+
+# Application paths
+asu_app_dir: /home/asu/asu
+public_path: /var/lib/asu/public
+container_socket_path: /run/user/{{ asu_uid }}/podman/podman.sock
+
+# Environment variables
+allow_defaults: 0
+squid_cache: 0
+redis_host: redis
+redis_port: 6379
+log_level: INFO
+upstream_url: https://downloads.openwrt.org
+
+# Domain configuration for Caddy
+# Set to empty string for no domain (uses :80)
+caddy_domain: ""
+# Example: "sysupgrade.staging.openwrt.org"
+
+# Force rebuild on every run
+force_rebuild: true

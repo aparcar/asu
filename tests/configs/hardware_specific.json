@@ -1,0 +1,9 @@
+{
+  "url": "http://localhost:8000",
+  "prepare_url": "http://localhost:8001",
+  "version": "25.12.0",
+  "target": "kirkwood/generic",
+  "profile": "checkpoint_l-50",
+  "packages": ["luci"],
+  "comment": "This tests hardware-specific package addition: kmod-dsa-mv88e6xxx should be added"
+}

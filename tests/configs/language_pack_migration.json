@@ -1,0 +1,9 @@
+{
+  "url": "http://localhost:8000",
+  "prepare_url": "http://localhost:8001",
+  "version": "24.10.0",
+  "target": "ath79/generic",
+  "profile": "tplink_tl-wdr4300-v1",
+  "packages": ["luci", "luci-i18n-opkg-en", "luci-i18n-opkg-de"],
+  "comment": "This tests language pack migration in 24.10: luci-i18n-opkg-* -> luci-i18n-package-manager-*"
+}
