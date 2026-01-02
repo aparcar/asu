@@ -1,5 +1,6 @@
 import logging
 from typing import Union
+from copy import deepcopy
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import RedirectResponse, Response
@@ -8,6 +9,7 @@ from rq.job import Job
 from asu.build import build
 from asu.build_request import BuildRequest
 from asu.config import settings
+from asu.package_resolution import PackageResolver
 from asu.util import (
     add_timestamp,
     add_build_event,
@@ -183,6 +185,83 @@ def return_job_v1(job: Job) -> tuple[dict, int, dict]:
     return response, response["status"], headers
 
 
+@router.post("/build/prepare")
+def api_v1_build_prepare(
+    build_request: BuildRequest,
+    response: Response,
+    request: Request,
+):
+    """
+    Prepare a build request without executing it.
+
+    This endpoint:
+    1. Validates the request
+    2. Applies package changes based on version/target/profile
+    3. Returns the final package list and changes for user approval
+    4. Does NOT queue a build job
+
+    The prepared request can be sent to /build with skip_package_resolution=true
+    to build exactly what was prepared.
+    """
+    # Sanitize the profile
+    build_request.profile = build_request.profile.replace(",", "_")
+
+    # Validate request
+    content, status = validate_request(request.app, build_request)
+    if content:
+        response.status_code = status
+        return content
+
+    # Create a copy of the build request to preserve the original
+    request_copy = deepcopy(build_request)
+
+    # Resolve packages and track changes
+    resolver = PackageResolver()
+    final_packages, changes = resolver.resolve(request_copy)
+
+    # Create prepared request (with resolved packages, diff_packages=False)
+    prepared_request = BuildRequest(
+        distro=build_request.distro,
+        version=build_request.version,
+        from_version=build_request.from_version,
+        version_code=build_request.version_code,
+        target=build_request.target,
+        profile=request_copy.profile,  # Use validated profile
+        packages=final_packages,
+        packages_versions=build_request.packages_versions,
+        diff_packages=False,  # Already resolved
+        defaults=build_request.defaults,
+        rootfs_size_mb=build_request.rootfs_size_mb,
+        repositories=build_request.repositories,
+        repository_keys=build_request.repository_keys,
+        client=build_request.client,
+    )
+
+    # Calculate hash of the prepared request
+    request_hash = get_request_hash(prepared_request)
+
+    # Check if this exact build already exists in cache
+    job = get_queue().fetch_job(request_hash)
+    cache_available = job and job.is_finished
+
+    return {
+        "status": "prepared",
+        # Original request info
+        "original_packages": build_request.packages,
+        "original_diff_packages": build_request.diff_packages,
+        # Resolved packages
+        "resolved_packages": final_packages,
+        # What changed
+        "changes": [c.to_dict() for c in changes],
+        # Prepared request to send to /build
+        "prepared_request": prepared_request.model_dump(),
+        "request_hash": request_hash,
+        # Cache info
+        "cache_available": cache_available,
+        "cached_job_id": job.id if cache_available else None,
+    }
+
+
 @router.head("/build/{request_hash}")
 @router.get("/build/{request_hash}")
 def api_v1_build_get(request: Request, request_hash: str, response: Response) -> dict:
@@ -208,7 +287,20 @@ def api_v1_build_post(
     response: Response,
     request: Request,
     user_agent: str = Header(None),
+    skip_package_resolution: bool = False,
 ):
+    """
+    Build a firmware image.
+
+    Args:
+        build_request: The build request parameters
+        skip_package_resolution: If True, skip package resolution (used when
+            building from a prepared request). Default: False
+
+    If skip_package_resolution=True, assumes packages are already resolved
+    and skips package changes/migrations. This should be used when calling
+    /build after /build/prepare.
+    """
     # Sanitize the profile in case the client did not (bug in older LuCI app).
     build_request.profile = build_request.profile.replace(",", "_")
 
@@ -224,7 +316,7 @@ def api_v1_build_post(
 
     if build_request.client:
         client = build_request.client
-    elif user_agent.startswith("auc"):
+    elif user_agent and user_agent.startswith("auc"):
         client = user_agent.replace(" (", "/").replace(")", "")
     else:
         client = "unknown/0"
@@ -237,10 +329,13 @@ def api_v1_build_post(
     if job is None:
         add_build_event("cache-misses")
 
-        content, status = validate_request(request.app, build_request)
-        if content:
-            response.status_code = status
-            return content
+        # Only validate if not already prepared
+        # Prepared requests have already been validated
+        if not skip_package_resolution:
+            content, status = validate_request(request.app, build_request)
+            if content:
+                response.status_code = status
+                return content
 
         job_queue_length = len(get_queue())
         if job_queue_length > settings.max_pending_jobs:
@@ -254,6 +349,7 @@ def api_v1_build_post(
         job = get_queue().enqueue(
             build,
             build_request,
+            skip_package_resolution=skip_package_resolution,
             job_id=request_hash,
             result_ttl=result_ttl,
             failure_ttl=failure_ttl,

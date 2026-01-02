@@ -31,6 +31,19 @@ class BuildRequest(BaseModel):
             pattern=STRING_PATTERN,
         ),
     ]
+    from_version: Annotated[
+        str | None,
+        Field(
+            examples=["23.05.0"],
+            description="""
+                The version the device is currently running. This allows the
+                server to apply appropriate package migrations when upgrading
+                from an older version. If not provided, package changes are
+                applied based on the target version only.
+            """.strip(),
+            pattern=STRING_PATTERN,
+        ),
+    ] = None
     version_code: Annotated[
         str,
         Field(

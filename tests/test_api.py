@@ -758,3 +758,147 @@ def test_api_stats(client):
     assert response.status_code == 200
     data = response.json()
     assert data["queue_length"] == 0
+
+
+def test_api_build_prepare(client):
+    """Test the prepare endpoint"""
+    response = client.post(
+        "/api/v1/build/prepare",
+        json=dict(
+            version="1.2.3",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["test1", "test2"],
+        ),
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check response structure
+    assert data["status"] == "prepared"
+    assert "original_packages" in data
+    assert "resolved_packages" in data
+    assert "changes" in data
+    assert "prepared_request" in data
+    assert "request_hash" in data
+    assert "cache_available" in data
+
+    # Check original packages
+    assert data["original_packages"] == ["test1", "test2"]
+
+    # Check prepared request structure
+    prepared = data["prepared_request"]
+    assert prepared["version"] == "1.2.3"
+    assert prepared["target"] == "testtarget/testsubtarget"
+    assert prepared["profile"] == "testprofile"
+    assert prepared["diff_packages"] is False  # Should be False after preparation
+
+
+def test_api_build_prepare_with_auc_migration(client):
+    """Test prepare endpoint with auc → owut migration"""
+    response = client.post(
+        "/api/v1/build/prepare",
+        json=dict(
+            version="24.10.0",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["luci", "auc"],
+        ),
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check that auc was replaced with owut
+    assert "owut" in data["resolved_packages"]
+    assert "auc" not in data["resolved_packages"]
+
+    # Check changes
+    assert len(data["changes"]) >= 1
+    migration = next(
+        (c for c in data["changes"] if c.get("from_package") == "auc"), None
+    )
+    assert migration is not None
+    assert migration["type"] == "migration"
+    assert migration["to_package"] == "owut"
+
+
+def test_api_build_prepare_validation_error(client):
+    """Test prepare endpoint with invalid version"""
+    response = client.post(
+        "/api/v1/build/prepare",
+        json=dict(
+            version="99.99.99",  # Invalid version
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["test1"],
+        ),
+    )
+    assert response.status_code == 400
+    data = response.json()
+    assert "detail" in data
+
+
+def test_api_build_from_prepared_request(client):
+    """Test building from a prepared request"""
+    # First, prepare the request
+    prep_response = client.post(
+        "/api/v1/build/prepare",
+        json=dict(
+            version="1.2.3",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["test1", "test2"],
+        ),
+    )
+    assert prep_response.status_code == 200
+    prep_data = prep_response.json()
+
+    # Then build using the prepared request
+    build_response = client.post(
+        "/api/v1/build?skip_package_resolution=true",
+        json=prep_data["prepared_request"],
+    )
+    assert build_response.status_code == 200
+    build_data = build_response.json()
+
+    # Verify the build used the prepared packages
+    assert build_data["request"]["packages"] == prep_data["resolved_packages"]
+
+
+def test_api_build_with_skip_package_resolution_flag(client):
+    """Test that skip_package_resolution flag works correctly"""
+    # Build with auc but skip package resolution
+    response = client.post(
+        "/api/v1/build?skip_package_resolution=true",
+        json=dict(
+            version="24.10.0",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["owut"],  # Already migrated
+            diff_packages=False,
+        ),
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should keep owut, not try to migrate
+    assert "owut" in data["request"]["packages"]
+
+
+def test_api_build_prepare_with_from_version(client):
+    """Test prepare endpoint with from_version parameter"""
+    response = client.post(
+        "/api/v1/build/prepare",
+        json=dict(
+            version="24.10.0",
+            from_version="23.05.0",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            packages=["luci"],
+        ),
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check that from_version is preserved in prepared request
+    assert data["prepared_request"]["from_version"] == "23.05.0"

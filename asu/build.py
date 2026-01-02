@@ -34,13 +34,16 @@ from asu.util import (
 log = logging.getLogger("rq.worker")
 
 
-def _build(build_request: BuildRequest, job=None):
+def _build(build_request: BuildRequest, job=None, skip_package_resolution=False):
     """Build image request and setup ImageBuilders automatically
 
     The `request` dict contains properties of the requested image.
 
     Args:
-        request (dict): Contains all properties of requested image
+        build_request (BuildRequest): Contains all properties of requested image
+        job: RQ job instance
+        skip_package_resolution (bool): If True, skip package resolution.
+            Used when building from a prepared request.
     """
 
     build_start: float = perf_counter()
@@ -221,7 +224,9 @@ def _build(build_request: BuildRequest, job=None):
         .split()
     )
 
-    apply_package_changes(build_request)
+    # Only apply package changes if not already prepared
+    if not skip_package_resolution:
+        apply_package_changes(build_request)
 
     build_cmd_packages = build_request.packages
 
@@ -433,9 +438,17 @@ def _build(build_request: BuildRequest, job=None):
     return json_content
 
 
-def build(build_request: BuildRequest, job=None):
+def build(build_request: BuildRequest, job=None, skip_package_resolution=False):
+    """
+    Build a firmware image.
+
+    Args:
+        build_request: The build request parameters
+        job: RQ job instance
+        skip_package_resolution: If True, skip package resolution
+    """
     try:
-        result = _build(build_request, job)
+        result = _build(build_request, job, skip_package_resolution)
     except Exception:
         # Log all build errors, including internal server errors.
         add_build_event("failures")

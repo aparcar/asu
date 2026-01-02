@@ -204,3 +204,88 @@ server:
 
 - [https://sysupgrade.openwrt.org/docs/](https://sysupgrade.openwrt.org/docs/)
 - [https://sysupgrade.openwrt.org/redoc](https://sysupgrade.openwrt.org/redoc/)
+
+#### Two-Step Build Process (Optional)
+
+For better user experience, clients can use a two-step build process to show
+users what package changes will be made before building:
+
+##### Step 1: Prepare (Optional)
+
+```bash
+POST /api/v1/build/prepare
+```
+
+This endpoint validates the request, applies package changes/migrations, and
+returns what packages will be installed. This allows users to review and approve
+changes before the actual build starts.
+
+**Example Request:**
+
+```json
+{
+  "version": "24.10.0",
+  "target": "ath79/generic",
+  "profile": "tplink_archer-c7-v5",
+  "packages": ["luci", "auc"],
+  "from_version": "23.05.0"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "status": "prepared",
+  "original_packages": ["luci", "auc"],
+  "resolved_packages": ["luci", "owut"],
+  "changes": [
+    {
+      "type": "migration",
+      "action": "replace",
+      "from_package": "auc",
+      "to_package": "owut",
+      "reason": "Package renamed in 24.10",
+      "automatic": true
+    }
+  ],
+  "prepared_request": {
+    "version": "24.10.0",
+    "target": "ath79/generic",
+    "profile": "tplink_archer-c7-v5",
+    "packages": ["luci", "owut"],
+    "diff_packages": false,
+    ...
+  },
+  "request_hash": "abc123...",
+  "cache_available": false
+}
+```
+
+##### Step 2: Build
+
+```bash
+POST /api/v1/build?skip_package_resolution=true
+```
+
+When called with a prepared request and `skip_package_resolution=true`, the
+endpoint builds exactly what was prepared without further package modifications.
+
+**Example Request:**
+
+```json
+{
+  "version": "24.10.0",
+  "target": "ath79/generic",
+  "profile": "tplink_archer-c7-v5",
+  "packages": ["luci", "owut"],
+  "diff_packages": false
+}
+```
+
+#### Backward Compatibility
+
+Existing clients continue to work unchanged. The `/api/v1/build` endpoint still
+applies package changes automatically when called directly without the prepare
+step. The two-step process is entirely optional and provides enhanced user
+control over package migrations.
