@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 from asu.build_request import BuildRequest
 from asu.package_selection import (
     calculate_package_selection,
+    get_default_packages,
+    get_profile_packages,
 )
 from asu.routers.api import validate_request
 from asu.util import (
@@ -134,12 +136,6 @@ def api_v1_packages_select(
                 "status": 500,
             }
 
-        # Import here to avoid circular dependency
-        from asu.package_selection import (
-            get_default_packages,
-            get_profile_packages,
-        )
-
         default_packages = get_default_packages(stdout)
         profile_packages = get_profile_packages(stdout, build_request.profile)
 
@@ -233,8 +229,6 @@ def api_v1_packages_defaults(
                 "status": 500,
             }
 
-        from asu.package_selection import get_default_packages
-
         default_packages = get_default_packages(stdout)
 
         return {"packages": sorted(default_packages)}
@@ -311,8 +305,6 @@ def api_v1_packages_profile(
                 "detail": f"Failed to get ImageBuilder info: {stderr}",
                 "status": 500,
             }
-
-        from asu.package_selection import get_profile_packages
 
         profile_packages = get_profile_packages(stdout, profile)
 
