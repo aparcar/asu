@@ -1,0 +1,221 @@
+{{ define "content" }}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4"><i class="bi bi-gear"></i> Configuration</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-server"></i> Server Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Host:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.ServerHost }}</code></dd>
+
+                    <dt class="col-sm-5">Port:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.ServerPort }}</code></dd>
+
+                    <dt class="col-sm-5">Log Level:</dt>
+                    <dd class="col-sm-7"><span class="badge bg-info">{{ .Config.LogLevel }}</span></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-database"></i> Database Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Database Path:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.DatabasePath }}</code></dd>
+
+                    <dt class="col-sm-5">Type:</dt>
+                    <dd class="col-sm-7"><span class="badge bg-success">SQLite (WAL mode)</span></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-folder"></i> Storage Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Public Path:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.PublicPath }}</code></dd>
+
+                    <dt class="col-sm-5">Store Path:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.StorePath }}</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-cloud-download"></i> Upstream Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Upstream URL:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.UpstreamURL }}</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-box"></i> Container Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Runtime:</dt>
+                    <dd class="col-sm-7"><span class="badge bg-dark">{{ .Config.ContainerRuntime }}</span></dd>
+
+                    <dt class="col-sm-5">Socket Path:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.ContainerSocketPath }}</code></dd>
+
+                    <dt class="col-sm-5">ImageBuilder Registry:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.ImageBuilderRegistry }}</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-hammer"></i> Build Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Max Pending Jobs:</dt>
+                    <dd class="col-sm-7"><span class="badge bg-secondary">{{ .Config.MaxPendingJobs }}</span></dd>
+
+                    <dt class="col-sm-5">Job Timeout:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.JobTimeoutSeconds }}s</code></dd>
+
+                    <dt class="col-sm-5">Build TTL:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.BuildTTLSeconds }}s ({{ formatDuration .Config.BuildTTLSeconds }})</code></dd>
+
+                    <dt class="col-sm-5">Failure TTL:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.FailureTTLSeconds }}s ({{ formatDuration .Config.FailureTTLSeconds }})</code></dd>
+
+                    <dt class="col-sm-5">Allow Defaults:</dt>
+                    <dd class="col-sm-7">
+                        {{ if .Config.AllowDefaults }}
+                            <span class="badge bg-success">Enabled</span>
+                        {{ else }}
+                            <span class="badge bg-danger">Disabled</span>
+                        {{ end }}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-purple text-white" style="background-color: #6f42c1;">
+                <h5 class="mb-0"><i class="bi bi-person-workspace"></i> Worker Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Worker ID:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.WorkerID }}</code></dd>
+
+                    <dt class="col-sm-5">Concurrency:</dt>
+                    <dd class="col-sm-7"><span class="badge" style="background-color: #6f42c1;">{{ .Config.WorkerConcurrent }} workers</span></dd>
+
+                    <dt class="col-sm-5">Poll Interval:</dt>
+                    <dd class="col-sm-7"><code>{{ .Config.WorkerPollSecs }}s</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-teal text-white" style="background-color: #20c997;">
+                <h5 class="mb-0"><i class="bi bi-box-arrow-up-right"></i> External Services</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Package Changes Service:</dt>
+                    <dd class="col-sm-7">
+                        {{ if .Config.PackageChangesURL }}
+                            <code>{{ .Config.PackageChangesURL }}</code>
+                        {{ else }}
+                            <span class="badge bg-secondary">Not configured</span>
+                        {{ end }}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Environment Variables -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-terminal"></i> Environment Variables</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Configuration can be overridden using environment variables with the <code>ASU_</code> prefix:</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Variable</th>
+                                <th>Description</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>ASU_SERVER_PORT</code></td>
+                                <td>HTTP server port</td>
+                                <td>8080</td>
+                            </tr>
+                            <tr>
+                                <td><code>ASU_DATABASE_PATH</code></td>
+                                <td>Path to SQLite database</td>
+                                <td>./data/builder.db</td>
+                            </tr>
+                            <tr>
+                                <td><code>ASU_WORKER_CONCURRENT</code></td>
+                                <td>Number of concurrent workers</td>
+                                <td>4</td>
+                            </tr>
+                            <tr>
+                                <td><code>ASU_MAX_PENDING_JOBS</code></td>
+                                <td>Maximum queue size</td>
+                                <td>200</td>
+                            </tr>
+                            <tr>
+                                <td><code>ASU_PACKAGE_CHANGES_URL</code></td>
+                                <td>Package changes service URL</td>
+                                <td>http://localhost:8081</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

@@ -1,0 +1,43 @@
+# Binaries
+asu-builder
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Build artifacts
+public/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config files (may contain secrets)
+config.yaml
+.env

@@ -1,0 +1,56 @@
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -trimpath -o asu-builder ./cmd
+
+# Runtime stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates sqlite-libs podman
+
+# Create app user
+RUN addgroup -g 1000 asu && \
+    adduser -D -u 1000 -G asu asu
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/public/store && \
+    chown -R asu:asu /app
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/asu-builder /app/asu-builder
+
+# Switch to app user
+USER asu
+
+# Expose port
+EXPOSE 8080
+
+# Set default environment variables
+ENV ASU_SERVER_HOST=0.0.0.0 \
+    ASU_SERVER_PORT=8080 \
+    ASU_DATABASE_PATH=/app/data/builder.db \
+    ASU_PUBLIC_PATH=/app/public \
+    ASU_STORE_PATH=/app/public/store
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Run the application
+CMD ["/app/asu-builder"]

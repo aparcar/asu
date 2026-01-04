@@ -1,0 +1,40 @@
+# ASU Builder Configuration Example
+# Copy this file to config.yaml and adjust values as needed
+
+# Server settings
+server_host: "0.0.0.0"
+server_port: 8080
+
+# Database
+database_path: "./data/builder.db"
+
+# Storage
+public_path: "./public"
+store_path: "./public/store"
+
+# Upstream OpenWrt
+upstream_url: "https://downloads.openwrt.org"
+
+# Container settings
+container_runtime: "podman"  # or "docker"
+container_socket_path: "/run/podman/podman.sock"
+imagebuilder_registry: "ghcr.io/openwrt/imagebuilder"
+
+# Build settings
+max_pending_jobs: 200
+job_timeout_seconds: 600  # 10 minutes
+build_ttl_seconds: 86400  # 1 day
+failure_ttl_seconds: 3600  # 1 hour
+allow_defaults: true
+build_key: ""  # Path to build signing key (optional)
+
+# Worker settings
+worker_id: "worker-1"
+worker_concurrent: 4  # Number of concurrent builds
+worker_poll_seconds: 5  # How often to check for new jobs
+
+# Package changes service
+package_changes_url: "http://localhost:8081"
+
+# Logging
+log_level: "info"  # debug, info, warn, error

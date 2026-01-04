@@ -1,0 +1,354 @@
+{{ define "content" }}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard Overview</h1>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Queue Length</h6>
+                        <h2 class="mt-2 mb-0" id="queueLength">-</h2>
+                    </div>
+                    <i class="bi bi-list-ul" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Builds Today</h6>
+                        <h2 class="mt-2 mb-0" id="buildsToday">-</h2>
+                    </div>
+                    <i class="bi bi-check-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Cache Hit Rate</h6>
+                        <h2 class="mt-2 mb-0" id="cacheHitRate">-</h2>
+                    </div>
+                    <i class="bi bi-lightning" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Avg Build Time</h6>
+                        <h2 class="mt-2 mb-0" id="avgBuildTime">-</h2>
+                    </div>
+                    <i class="bi bi-clock" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Build Activity (Last 7 Days)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="buildActivityChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Build Results</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="buildResultsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version Popularity -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Popular Versions</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="versionChart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-toggle-on"></i> Diff Packages Usage</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="diffPackagesChart"></canvas>
+                <div class="mt-3" id="diffPackagesStats"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> System Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Worker ID:</dt>
+                            <dd class="col-sm-8"><code id="workerId">-</code></dd>
+
+                            <dt class="col-sm-4">Concurrency:</dt>
+                            <dd class="col-sm-8"><span id="workerConcurrency">-</span> workers</dd>
+
+                            <dt class="col-sm-4">Uptime:</dt>
+                            <dd class="col-sm-8"><span id="uptime">-</span></dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Database:</dt>
+                            <dd class="col-sm-8"><span class="badge bg-success">SQLite</span></dd>
+
+                            <dt class="col-sm-4">Container:</dt>
+                            <dd class="col-sm-8"><span class="badge bg-primary">Podman</span></dd>
+
+                            <dt class="col-sm-4">Last Updated:</dt>
+                            <dd class="col-sm-8"><span id="lastUpdated">-</span></dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+// Update dashboard data
+function updateDashboard() {
+    // Get queue stats
+    fetch('/api/v1/stats')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('queueLength').textContent = data.queue_length || 0;
+        });
+
+    // Get builds per day
+    fetch('/api/v1/builds-per-day?days=7')
+        .then(r => r.json())
+        .then(data => {
+            const today = new Date().toISOString().split('T')[0];
+            const todayData = data[today] || {};
+            const totalToday = (todayData.request || 0) + (todayData.cache_hit || 0);
+            document.getElementById('buildsToday').textContent = totalToday;
+
+            // Calculate cache hit rate
+            const cacheHits = todayData.cache_hit || 0;
+            const rate = totalToday > 0 ? ((cacheHits / totalToday) * 100).toFixed(1) : 0;
+            document.getElementById('cacheHitRate').textContent = rate + '%';
+
+            updateBuildActivityChart(data);
+        });
+
+    // Get diff packages stats
+    fetch('/api/v1/diff-packages-stats?days=7')
+        .then(r => r.json())
+        .then(data => {
+            updateDiffPackagesChart(data);
+        });
+
+    // Get version stats
+    fetch('/api/v1/builds-by-version?weeks=4')
+        .then(r => r.json())
+        .then(data => {
+            updateVersionChart(data);
+        });
+
+    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+}
+
+// Build Activity Chart
+let buildActivityChart;
+function updateBuildActivityChart(data) {
+    const dates = Object.keys(data).sort().slice(-7);
+    const requests = dates.map(d => data[d].request || 0);
+    const cacheHits = dates.map(d => data[d].cache_hit || 0);
+    const completed = dates.map(d => data[d].build_completed || 0);
+    const failures = dates.map(d => data[d].failure || 0);
+
+    const ctx = document.getElementById('buildActivityChart');
+    if (buildActivityChart) buildActivityChart.destroy();
+
+    buildActivityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Requests',
+                    data: requests,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Cache Hits',
+                    data: cacheHits,
+                    borderColor: 'rgb(54, 162, 235)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Completed',
+                    data: completed,
+                    borderColor: 'rgb(75, 192, 75)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Failures',
+                    data: failures,
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' }
+            }
+        }
+    });
+
+    // Update avg build time (mock for now)
+    document.getElementById('avgBuildTime').textContent = '125s';
+}
+
+// Diff Packages Chart
+let diffPackagesChart;
+function updateDiffPackagesChart(data) {
+    const ctx = document.getElementById('diffPackagesChart');
+    if (diffPackagesChart) diffPackagesChart.destroy();
+
+    diffPackagesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Enabled', 'Disabled'],
+            datasets: [{
+                data: [data.diff_packages_true || 0, data.diff_packages_false || 0],
+                backgroundColor: ['rgb(75, 192, 192)', 'rgb(201, 203, 207)']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    // Update stats text
+    const stats = `
+        <p class="mb-1"><strong>Total Builds:</strong> ${data.total_builds || 0}</p>
+        <p class="mb-1"><strong>With diff_packages:</strong> ${data.diff_packages_true || 0} (${data.percentage_true?.toFixed(1) || 0}%)</p>
+        <p class="mb-0"><strong>Without diff_packages:</strong> ${data.diff_packages_false || 0} (${data.percentage_false?.toFixed(1) || 0}%)</p>
+    `;
+    document.getElementById('diffPackagesStats').innerHTML = stats;
+}
+
+// Version Popularity Chart
+let versionChart;
+function updateVersionChart(data) {
+    const versions = Object.keys(data).slice(0, 5);
+    const counts = versions.map(v => (data[v].request || 0) + (data[v].cache_hit || 0));
+
+    const ctx = document.getElementById('versionChart');
+    if (versionChart) versionChart.destroy();
+
+    versionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: versions,
+            datasets: [{
+                label: 'Requests',
+                data: counts,
+                backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                borderColor: 'rgb(75, 192, 192)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Build Results Pie Chart (mock data for now)
+const buildResultsCtx = document.getElementById('buildResultsChart');
+new Chart(buildResultsCtx, {
+    type: 'pie',
+    data: {
+        labels: ['Success', 'Failed', 'Cached'],
+        datasets: [{
+            data: [65, 5, 30],
+            backgroundColor: [
+                'rgb(75, 192, 75)',
+                'rgb(255, 99, 132)',
+                'rgb(54, 162, 235)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    }
+});
+
+// Initialize
+updateDashboard();
+setInterval(updateDashboard, 30000); // Update every 30s
+
+// Mock system info
+document.getElementById('workerId').textContent = 'worker-' + Math.random().toString(36).substr(2, 9);
+document.getElementById('workerConcurrency').textContent = '4';
+document.getElementById('uptime').textContent = '2 days, 5 hours';
+</script>
+{{ end }}
