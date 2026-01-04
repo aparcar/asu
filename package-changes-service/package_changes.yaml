@@ -1,0 +1,93 @@
+# Package Changes Configuration
+# This file defines version-specific package transformations for OpenWrt builds
+
+# Version-specific package renames
+package_renames:
+  "23.05":
+    firewall: firewall4
+    ip6tables: ip6tables-nft
+    iptables: iptables-nft
+
+  "24.10":
+    auc: owut
+    opkg: apk-mbedtls
+
+# Version transitions - applied when from_version is specified
+version_transitions:
+  "22.03->23.05":
+    remove:
+      - firewall
+    add:
+      - firewall4
+    replace:
+      iptables: iptables-nft
+      ip6tables: ip6tables-nft
+
+  "23.05->24.10":
+    remove:
+      - opkg
+      - auc
+    add:
+      - apk-mbedtls
+      - owut
+
+# Profile-specific package additions
+profile_specific:
+  tplink_archer-c7-v5:
+    - ath10k-firmware-qca988x
+  tplink_archer-c7-v2:
+    - ath9k-htc-firmware
+  linksys_wrt3200acm:
+    - mwlwifi-firmware-88w8964
+
+# Language pack replacements (pattern-based)
+language_pack_replacements:
+  "24.10":
+    pattern: "luci-i18n-(.*)-opkg"
+    replace: "luci-i18n-\\1-apk"
+
+# Deprecated packages with warnings
+deprecated_packages:
+  firewall:
+    since: "23.05"
+    replacement: firewall4
+    warning: "firewall is deprecated since 23.05, use firewall4 instead"
+
+  opkg:
+    since: "24.10"
+    replacement: apk-mbedtls
+    warning: "opkg is replaced by apk in 24.10+"
+
+# Custom transformation rules per version
+custom_rules:
+  "23.05":
+    nftables_migration:
+      description: "Migrate iptables to nftables"
+      transforms:
+        - if_contains: iptables
+          add: iptables-nft
+          remove: iptables
+        - if_contains: ip6tables
+          add: ip6tables-nft
+          remove: ip6tables
+
+  "24.10":
+    apk_migration:
+      description: "Migrate opkg to apk"
+      transforms:
+        - if_contains: opkg
+          add: apk-mbedtls
+          remove: opkg
+
+# Global conflict resolution
+conflicts:
+  wpad-basic:
+    conflicts_with:
+      - wpad-mbedtls
+      - wpad-wolfssl
+    action: remove_conflicting
+
+  wpad-wolfssl:
+    conflicts_with:
+      - wpad-mbedtls
+    action: remove_conflicting
