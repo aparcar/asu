@@ -1,5 +1,5 @@
 # Package Changes Configuration
-# This file defines version-specific package transformations for OpenWrt builds
+# Converted from asu/package_changes.py
 
 # Version-specific package renames
 package_renames:
@@ -31,20 +31,243 @@ version_transitions:
       - apk-mbedtls
       - owut
 
-# Profile-specific package additions
+# Profile-specific package additions by version and target
+# Format: version.target.profile
 profile_specific:
-  tplink_archer-c7-v5:
-    - ath10k-firmware-qca988x
-  tplink_archer-c7-v2:
-    - ath9k-htc-firmware
-  linksys_wrt3200acm:
-    - mwlwifi-firmware-88w8964
+  # 23.05 - mediatek/mt7622
+  "23.05.mediatek/mt7622.*":
+    - kmod-mt7622-firmware
+
+  # 23.05 - ath79/generic - RTL8366S switch profiles
+  "23.05.ath79/generic.buffalo_wzr-hp-g300nh-s":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.dlink_dir-825-b1":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndr3700":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndr3700-v2":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndr3800":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndr3800ch":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndrmac-v1":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.netgear_wndrmac-v2":
+    - kmod-switch-rtl8366s
+  "23.05.ath79/generic.trendnet_tew-673gru":
+    - kmod-switch-rtl8366s
+
+  # 23.05 - ath79/generic - RTL8366RB switch profile
+  "23.05.ath79/generic.buffalo_wzr-hp-g300nh-rb":
+    - kmod-switch-rtl8366rb
+
+  # 25.12 - kirkwood/generic - DSA profiles
+  "25.12.kirkwood/generic.checkpoint_l-50":
+    - kmod-dsa-mv88e6xxx
+  "25.12.kirkwood/generic.endian_4i-edge-200":
+    - kmod-dsa-mv88e6xxx
+  "25.12.kirkwood/generic.linksys_e4200-v2":
+    - kmod-dsa-mv88e6xxx
+  "25.12.kirkwood/generic.linksys_ea3500":
+    - kmod-dsa-mv88e6xxx
+  "25.12.kirkwood/generic.linksys_ea4500":
+    - kmod-dsa-mv88e6xxx
+
+  # 25.12 - mvebu/cortexa9 - DSA profiles
+  "25.12.mvebu/cortexa9.cznic_turris-omnia":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fg-30e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fwf-30e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fg-50e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fg-51e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fg-52e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fwf-50e-2r":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.fortinet_fwf-51e":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.iij_sa-w2":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt1200ac":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt1900acs":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt1900ac-v1":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt1900ac-v2":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt3200acm":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.linksys_wrt32x":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa9.marvell_a370-rd":
+    - kmod-dsa-mv88e6xxx
+
+  # 25.12 - mvebu/cortexa53 - DSA profiles
+  "25.12.mvebu/cortexa53.glinet_gl-mv1000":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.globalscale_espressobin":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.globalscale_espressobin-emmc":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.globalscale_espressobin-ultra":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.globalscale_espressobin-v7":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.globalscale_espressobin-v7-emmc":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa53.methode_udpu":
+    - kmod-dsa-mv88e6xxx
+
+  # 25.12 - mvebu/cortexa72 - DSA profiles
+  "25.12.mvebu/cortexa72.checkpoint_v-80":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa72.checkpoint_v-81":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa72.globalscale_mochabin":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa72.mikrotik_rb5009":
+    - kmod-dsa-mv88e6xxx
+  "25.12.mvebu/cortexa72.solidrun_clearfog-pro":
+    - kmod-dsa-mv88e6xxx
+
+  # 25.12 - lantiq/xrx200 - PHY22F firmware profiles
+  "25.12.lantiq/xrx200.arcadyan_arv7519rw22":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200.arcadyan_vgv7510kw22-brn":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200.arcadyan_vgv7510kw22-nor":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200.avm_fritz7412":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200.avm_fritz7430":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200.buffalo_wbmr-300hpd":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+
+  # 25.12 - lantiq/xrx200 - PHY11G firmware profiles
+  "25.12.lantiq/xrx200.tplink_vr200":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.tplink_vr200v":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.arcadyan_vgv7519-brn":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.arcadyan_vgv7519-nor":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.arcadyan_vrv9510kwac23":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz3370-rev2-hynix":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz3370-rev2-micron":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz3390":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz3490":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz3490-micron":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz5490":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz5490-micron":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz7360sl":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz7360-v2":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz7362sl":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz7490":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.avm_fritz7490-micron":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.bt_homehub-v5a":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.lantiq_easy80920-nand":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.lantiq_easy80920-nor":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.zyxel_p-2812hnu-f1":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200.zyxel_p-2812hnu-f3":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+
+  # 25.12 - lantiq/xrx200_legacy - PHY22F firmware profiles
+  "25.12.lantiq/xrx200_legacy.alphanetworks_asl56026":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+  "25.12.lantiq/xrx200_legacy.netgear_dm200":
+    - xrx200-rev1.1-phy22f-firmware
+    - xrx200-rev1.2-phy22f-firmware
+
+  # 25.12 - lantiq/xrx200_legacy - PHY11G firmware profiles
+  "25.12.lantiq/xrx200_legacy.tplink_tdw8970":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200_legacy.tplink_tdw8980":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+  "25.12.lantiq/xrx200_legacy.arcadyan_vg3503j":
+    - xrx200-rev1.1-phy11g-firmware
+    - xrx200-rev1.2-phy11g-firmware
+
+  # 25.12 - bcm53xx/generic - HCI UART profiles
+  "25.12.bcm53xx/generic.meraki_mr32":
+    - kmod-hci-uart
+
+  # 25.12 - ipq40xx/generic - HCI UART profiles
+  "25.12.ipq40xx/generic.linksys_whw03":
+    - kmod-hci-uart
+  "25.12.ipq40xx/generic.linksys_whw03v2":
+    - kmod-hci-uart
+
+  # 25.12 - qualcommax/ipq807x - HCI UART profiles
+  "25.12.qualcommax/ipq807x.linksys_mx4200v1":
+    - kmod-hci-uart
+  "25.12.qualcommax/ipq807x.linksys_mx8500":
+    - kmod-hci-uart
+  "25.12.qualcommax/ipq807x.zyxel_nbg7815":
+    - kmod-hci-uart
 
 # Language pack replacements (pattern-based)
+# These apply to ALL versions >= specified version
 language_pack_replacements:
   "24.10":
-    pattern: "luci-i18n-(.*)-opkg"
-    replace: "luci-i18n-\\1-apk"
+    - pattern: "^luci-i18n-opkg-(.+)$"
+      replace: "luci-i18n-package-manager-\\1"
+      description: "Replace opkg language packs with package-manager equivalents"
 
 # Deprecated packages with warnings
 deprecated_packages:
@@ -57,6 +280,11 @@ deprecated_packages:
     since: "24.10"
     replacement: apk-mbedtls
     warning: "opkg is replaced by apk in 24.10+"
+
+  auc:
+    since: "24.10"
+    replacement: owut
+    warning: "auc is replaced by owut in 24.10+"
 
 # Custom transformation rules per version
 custom_rules:
@@ -78,6 +306,12 @@ custom_rules:
         - if_contains: opkg
           add: apk-mbedtls
           remove: opkg
+    auc_migration:
+      description: "Replace auc with owut"
+      transforms:
+        - if_contains: auc
+          add: owut
+          remove: auc
 
 # Global conflict resolution
 conflicts:
