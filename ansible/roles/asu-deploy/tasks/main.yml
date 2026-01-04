@@ -1,0 +1,167 @@
+---
+- name: Install Podman and dependencies
+  ansible.builtin.package:
+    name:
+      - podman
+      - podman-compose
+      - git
+      - caddy
+    state: present
+  become: true
+
+- name: Enable and start Podman socket
+  ansible.builtin.systemd:
+    name: podman.socket
+    enabled: true
+    state: started
+  become: true
+
+- name: Create asu group
+  ansible.builtin.group:
+    name: "{{ asu_group }}"
+    state: present
+  become: true
+
+- name: Create asu user
+  ansible.builtin.user:
+    name: "{{ asu_user }}"
+    group: "{{ asu_group }}"
+    home: "{{ asu_home }}"
+    shell: /bin/bash
+    create_home: true
+    system: false
+  become: true
+  register: asu_user_info
+
+- name: Set asu_uid fact
+  ansible.builtin.set_fact:
+    asu_uid: "{{ asu_user_info.uid }}"
+
+- name: Enable lingering for asu user (allows user services to run without login)
+  ansible.builtin.command:
+    cmd: loginctl enable-linger {{ asu_user }}
+  become: true
+  changed_when: false
+
+- name: Create public data directory
+  ansible.builtin.file:
+    path: "{{ public_path }}"
+    state: directory
+    owner: "{{ asu_user }}"
+    group: "{{ asu_group }}"
+    mode: '0755'
+  become: true
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ asu_app_dir }}"
+    state: directory
+    owner: "{{ asu_user }}"
+    group: "{{ asu_group }}"
+    mode: '0755'
+  become: true
+
+- name: Check if repository exists
+  ansible.builtin.stat:
+    path: "{{ asu_app_dir }}/.git"
+  register: git_repo
+
+- name: Clone ASU repository
+  ansible.builtin.git:
+    repo: "{{ asu_repository }}"
+    version: "{{ asu_branch }}"
+    dest: "{{ asu_app_dir }}"
+    force: true
+  become: true
+  become_user: "{{ asu_user }}"
+  when: not git_repo.stat.exists
+
+- name: Update ASU repository
+  ansible.builtin.git:
+    repo: "{{ asu_repository }}"
+    version: "{{ asu_branch }}"
+    dest: "{{ asu_app_dir }}"
+    force: true
+  become: true
+  become_user: "{{ asu_user }}"
+  when: git_repo.stat.exists
+  register: git_update
+
+- name: Deploy .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ asu_app_dir }}/.env"
+    owner: "{{ asu_user }}"
+    group: "{{ asu_group }}"
+    mode: '0644'
+  become: true
+  register: env_file
+  notify: Rebuild and restart containers
+
+- name: Deploy podman-compose.yml
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../podman-compose.yml"
+    dest: "{{ asu_app_dir }}/podman-compose.yml"
+    owner: "{{ asu_user }}"
+    group: "{{ asu_group }}"
+    mode: '0644'
+  become: true
+  register: compose_file_copy
+  notify: Rebuild and restart containers
+
+- name: Deploy Caddyfile to /etc/caddy
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: caddyfile
+  notify: Reload Caddy
+
+- name: Enable and start Caddy service
+  ansible.builtin.systemd:
+    name: caddy
+    enabled: true
+    state: started
+  become: true
+
+- name: Stop existing containers
+  ansible.builtin.command:
+    cmd: podman-compose down
+    chdir: "{{ asu_app_dir }}"
+  become: true
+  become_user: "{{ asu_user }}"
+  failed_when: false
+  changed_when: false
+  when: force_rebuild or (git_update is defined and git_update.changed) or env_file.changed or compose_file_copy.changed
+
+- name: Build and start containers with podman-compose
+  ansible.builtin.command:
+    cmd: podman-compose up -d --build
+    chdir: "{{ asu_app_dir }}"
+  become: true
+  become_user: "{{ asu_user }}"
+  environment:
+    PUBLIC_PATH: "{{ public_path }}"
+    CONTAINER_SOCKET_PATH: "{{ container_socket_path }}"
+  when: force_rebuild or (git_update is defined and git_update.changed) or env_file.changed or compose_file_copy.changed
+  register: compose_up
+
+- name: Create systemd service for podman-compose
+  ansible.builtin.template:
+    src: asu-podman.service.j2
+    dest: "/etc/systemd/system/asu-podman.service"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  notify: Reload systemd
+
+- name: Enable asu-podman service
+  ansible.builtin.systemd:
+    name: asu-podman
+    enabled: true
+    daemon_reload: true
+  become: true

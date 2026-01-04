@@ -1,0 +1,27 @@
+# Containerfile for ASU Prepare Service
+# Minimal, lightweight service with NO build dependencies
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install minimal dependencies only
+COPY pyproject.toml ./
+RUN pip install poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --only main --no-root --no-interaction --no-ansi && \
+    rm -rf ~/.cache/pypoetry
+
+# Copy prepare service code ONLY
+COPY *.py ./
+COPY README.md ./
+
+# Expose port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8001/health')" || exit 1
+
+# Run prepare service
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

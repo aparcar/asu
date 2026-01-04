@@ -1,6 +1,7 @@
 import logging
 from typing import Union
 
+import httpx
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import RedirectResponse, Response
 from rq.job import Job
@@ -208,7 +209,20 @@ def api_v1_build_post(
     response: Response,
     request: Request,
     user_agent: str = Header(None),
+    skip_package_resolution: bool = False,
 ):
+    """
+    Build a firmware image.
+
+    Args:
+        build_request: The build request parameters
+        skip_package_resolution: If True, skip package resolution (used when
+            building from a prepared request). Default: False
+
+    If skip_package_resolution=True, assumes packages are already resolved
+    and skips package changes/migrations. This should be used when calling
+    /build after /build/prepare.
+    """
     # Sanitize the profile in case the client did not (bug in older LuCI app).
     build_request.profile = build_request.profile.replace(",", "_")
 
@@ -224,7 +238,7 @@ def api_v1_build_post(
 
     if build_request.client:
         client = build_request.client
-    elif user_agent.startswith("auc"):
+    elif user_agent and user_agent.startswith("auc"):
         client = user_agent.replace(" (", "/").replace(")", "")
     else:
         client = "unknown/0"
@@ -237,10 +251,13 @@ def api_v1_build_post(
     if job is None:
         add_build_event("cache-misses")
 
-        content, status = validate_request(request.app, build_request)
-        if content:
-            response.status_code = status
-            return content
+        # Only validate if not already prepared
+        # Prepared requests have already been validated
+        if not skip_package_resolution:
+            content, status = validate_request(request.app, build_request)
+            if content:
+                response.status_code = status
+                return content
 
         job_queue_length = len(get_queue())
         if job_queue_length > settings.max_pending_jobs:
@@ -254,6 +271,7 @@ def api_v1_build_post(
         job = get_queue().enqueue(
             build,
             build_request,
+            skip_package_resolution=skip_package_resolution,
             job_id=request_hash,
             result_ttl=result_ttl,
             failure_ttl=failure_ttl,

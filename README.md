@@ -77,6 +77,43 @@ For security reasons each build happens inside a container so that one build
 can't affect another build. For this to work a Podman container runs an API
 service so workers can themselfs execute builds inside containers.
 
+### Microservices Architecture
+
+ASU can be deployed as independent microservices that run in separate containers:
+
+1. **Prepare Service** (Lightweight)
+   - Handles `/api/v1/build/prepare` endpoint
+   - Package resolution and validation only
+   - No heavy dependencies (Redis, Podman, ImageBuilder)
+   - Fast, stateless, can scale horizontally
+   - Minimal resource requirements (512MB RAM, 0.5 CPU)
+
+2. **Build Service** (Heavy)
+   - Handles `/api/v1/build` endpoint
+   - Actual firmware image building
+   - Requires Redis, RQ, Podman, ImageBuilder
+   - Resource-intensive (4GB+ RAM, 4+ CPU cores)
+   - Can scale workers independently
+
+**Benefits:**
+- **Cost Efficiency**: Run many prepare instances cheaply, fewer build instances
+- **Better Performance**: Prepare requests don't wait for build resources
+- **Independent Scaling**: Scale each service based on demand
+- **Resource Isolation**: Build failures don't affect prepare service
+- **Deployment Flexibility**: Deploy services on different infrastructure
+
+**Deployment Options:**
+
+```bash
+# Option 1: Monolithic (current, all-in-one)
+podman-compose up -d
+
+# Option 2: Microservices (separate containers)
+podman-compose -f podman-compose.microservices.yml up -d
+```
+
+See `podman-compose.microservices.yml` and `Containerfile.prepare` / `Containerfile.build` for microservices configuration.
+
 ### Installation
 
 The server uses `podman-compose` to manage the containers. On a Debian based
@@ -204,3 +241,88 @@ server:
 
 - [https://sysupgrade.openwrt.org/docs/](https://sysupgrade.openwrt.org/docs/)
 - [https://sysupgrade.openwrt.org/redoc](https://sysupgrade.openwrt.org/redoc/)
+
+#### Two-Step Build Process (Optional)
+
+For better user experience, clients can use a two-step build process to show
+users what package changes will be made before building:
+
+##### Step 1: Prepare (Optional)
+
+```bash
+POST /api/v1/build/prepare
+```
+
+This endpoint validates the request, applies package changes/migrations, and
+returns what packages will be installed. This allows users to review and approve
+changes before the actual build starts.
+
+**Example Request:**
+
+```json
+{
+  "version": "24.10.0",
+  "target": "ath79/generic",
+  "profile": "tplink_archer-c7-v5",
+  "packages": ["luci", "auc"],
+  "from_version": "23.05.0"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "status": "prepared",
+  "original_packages": ["luci", "auc"],
+  "resolved_packages": ["luci", "owut"],
+  "changes": [
+    {
+      "type": "migration",
+      "action": "replace",
+      "from_package": "auc",
+      "to_package": "owut",
+      "reason": "Package renamed in 24.10",
+      "automatic": true
+    }
+  ],
+  "prepared_request": {
+    "version": "24.10.0",
+    "target": "ath79/generic",
+    "profile": "tplink_archer-c7-v5",
+    "packages": ["luci", "owut"],
+    "diff_packages": false,
+    ...
+  },
+  "request_hash": "abc123...",
+  "cache_available": false
+}
+```
+
+##### Step 2: Build
+
+```bash
+POST /api/v1/build?skip_package_resolution=true
+```
+
+When called with a prepared request and `skip_package_resolution=true`, the
+endpoint builds exactly what was prepared without further package modifications.
+
+**Example Request:**
+
+```json
+{
+  "version": "24.10.0",
+  "target": "ath79/generic",
+  "profile": "tplink_archer-c7-v5",
+  "packages": ["luci", "owut"],
+  "diff_packages": false
+}
+```
+
+#### Backward Compatibility
+
+Existing clients continue to work unchanged. The `/api/v1/build` endpoint still
+applies package changes automatically when called directly without the prepare
+step. The two-step process is entirely optional and provides enhanced user
+control over package migrations.

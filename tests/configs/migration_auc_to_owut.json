@@ -1,0 +1,9 @@
+{
+  "url": "http://localhost:8000",
+  "prepare_url": "http://localhost:8001",
+  "version": "24.10.0",
+  "target": "x86/64",
+  "profile": "generic",
+  "packages": ["luci", "auc"],
+  "comment": "This tests auc -> owut migration in 24.10"
+}

@@ -1,27 +1,70 @@
-#{
-#	auto_https disable_redirects
-#	preferred_chains {
-#		root_common_name "ISRG Root X1"
-#	}
-#}
-#
-#sysupgrade.openwrt.org sysupgrade.openwrt.org:80 {
-#	root * /path/to/asu/
-#	file_server /json/
-#	file_server /store/
-#	header Access-Control-Allow-Methods "POST, GET, OPTIONS"
-#	header Access-Control-Allow-Headers "*"
-#	header Access-Control-Allow-Origin "*"
-#	reverse_proxy * localhost:8000
-#}
+# Caddy configuration for ASU Microservices
+# Routes requests to appropriate service
+
+{
+    # Global options
+    auto_https off
+}
 
 :80 {
-	root * /site/
-	file_server /json/
-	file_server /store/
-	header Access-Control-Allow-Methods "POST, GET, OPTIONS"
-	header Access-Control-Allow-Headers "*"
-	header Access-Control-Allow-Origin "*"
-	reverse_proxy * server:8000
-	reverse_proxy /stats grafana:3000
+    # Prepare endpoint → prepare service
+    handle /api/v1/prepare* {
+        reverse_proxy prepare:8001 {
+            # Timeouts for prepare service (should be fast)
+            transport http {
+                dial_timeout 10s
+                response_header_timeout 30s
+            }
+        }
+    }
+
+    # Build endpoint → build service
+    handle /api/v1/build* {
+        reverse_proxy build:8000 {
+            # Longer timeouts for build service (can take time)
+            transport http {
+                dial_timeout 30s
+                response_header_timeout 600s
+            }
+        }
+    }
+
+    # Stats and other endpoints → build service
+    handle /api/v1/* {
+        reverse_proxy build:8000
+    }
+
+    # JSON endpoints → build service (for now)
+    # Could be moved to prepare service if needed
+    handle /json/* {
+        reverse_proxy build:8000
+    }
+
+    # Static files → build service
+    handle /static/* {
+        reverse_proxy build:8000
+    }
+
+    # Store (firmware downloads) → build service
+    handle /store/* {
+        reverse_proxy build:8000
+    }
+
+    # Health checks
+    handle /health/prepare {
+        reverse_proxy prepare:8001 {
+            rewrite /health
+        }
+    }
+
+    handle /health/build {
+        reverse_proxy build:8000 {
+            rewrite /health
+        }
+    }
+
+    # Root and other paths → build service (catch-all)
+    handle {
+        reverse_proxy build:8000
+    }
 }

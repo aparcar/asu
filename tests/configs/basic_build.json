@@ -1,0 +1,8 @@
+{
+  "url": "http://localhost:8000",
+  "prepare_url": "http://localhost:8001",
+  "version": "23.05.5",
+  "target": "x86/64",
+  "profile": "generic",
+  "packages": ["luci"]
+}

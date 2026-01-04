@@ -1,0 +1,30 @@
+---
+- name: Deploy ASU with Podman
+  hosts: asu_servers
+  become: true
+
+  roles:
+    - role: asu-deploy
+      vars:
+        # User configuration
+        asu_user: asu
+        asu_group: asu
+        asu_repository: https://github.com/aparcar/asu.git
+        asu_branch: claude/analyze-code-PCj61
+
+        # Paths
+        public_path: /var/lib/asu/public
+        asu_app_dir: /home/asu/asu
+
+        # Domain configuration for Caddy
+        # Set to empty string for no domain (HTTP only on port 80)
+        # Set to a domain for automatic HTTPS with Let's Encrypt
+        caddy_domain: "sysupgrade.staging.openwrt.org"
+
+        # Force rebuild on every run (set to true for automatic rebuilds)
+        force_rebuild: true
+
+        # Environment variables
+        allow_defaults: 0
+        log_level: INFO
+        upstream_url: https://downloads.openwrt.org
