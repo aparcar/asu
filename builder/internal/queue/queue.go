@@ -126,7 +126,7 @@ func (w *Worker) processJob(ctx context.Context, job *models.BuildJob) {
 		}
 
 		// Record failure stat
-		w.db.RecordEvent(models.EventTypeFailure, buildReq.Version, buildReq.Target, buildReq.Profile, 0)
+		w.db.RecordEvent(models.EventTypeFailure, buildReq.Version, buildReq.Target, buildReq.Profile, 0, buildReq.DiffPackages)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (w *Worker) processJob(ctx context.Context, job *models.BuildJob) {
 	}
 
 	// Record success stat
-	w.db.RecordEvent(models.EventTypeBuildCompleted, buildReq.Version, buildReq.Target, buildReq.Profile, int(duration.Seconds()))
+	w.db.RecordEvent(models.EventTypeBuildCompleted, buildReq.Version, buildReq.Target, buildReq.Profile, int(duration.Seconds()), buildReq.DiffPackages)
 
 	log.Printf("Build completed for %s in %v, images: %v", job.RequestHash, duration, result.Images)
 }

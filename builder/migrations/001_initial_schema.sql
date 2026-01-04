@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS build_stats (
     version TEXT,
     target TEXT,
     profile TEXT,
-    duration_seconds INTEGER
+    duration_seconds INTEGER,
+    diff_packages BOOLEAN
 );
 
 CREATE INDEX IF NOT EXISTS idx_build_stats_timestamp ON build_stats(timestamp);

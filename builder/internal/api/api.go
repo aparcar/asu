@@ -50,6 +50,9 @@ func (s *Server) setupRoutes() {
 		v1.GET("/stats", s.handleStats)
 		v1.GET("/builds-per-day", s.handleBuildsPerDay)
 		v1.GET("/builds-by-version", s.handleBuildsByVersion)
+		v1.GET("/diff-packages-stats", s.handleDiffPackagesStats)
+		v1.GET("/diff-packages-by-version", s.handleDiffPackagesByVersion)
+		v1.GET("/diff-packages-trend", s.handleDiffPackagesTrend)
 	}
 
 	// Health check
@@ -86,7 +89,7 @@ func (s *Server) handleBuildRequest(c *gin.Context) {
 
 	if result != nil {
 		// Cache hit - return existing result
-		s.db.RecordEvent(models.EventTypeCacheHit, req.Version, req.Target, req.Profile, 0)
+		s.db.RecordEvent(models.EventTypeCacheHit, req.Version, req.Target, req.Profile, 0, req.DiffPackages)
 
 		var images []string
 		json.Unmarshal([]byte(result.Images), &images)
@@ -157,7 +160,7 @@ func (s *Server) handleBuildRequest(c *gin.Context) {
 	}
 
 	// Record request stat
-	s.db.RecordEvent(models.EventTypeRequest, req.Version, req.Target, req.Profile, 0)
+	s.db.RecordEvent(models.EventTypeRequest, req.Version, req.Target, req.Profile, 0, req.DiffPackages)
 
 	position, _ := s.db.GetQueuePosition(req.RequestHash)
 	response := models.BuildResponse{

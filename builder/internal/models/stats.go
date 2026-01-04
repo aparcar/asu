@@ -21,4 +21,5 @@ type BuildStat struct {
 	Target        string        `json:"target,omitempty" db:"target"`
 	Profile       string        `json:"profile,omitempty" db:"profile"`
 	DurationSecs  int           `json:"duration_seconds,omitempty" db:"duration_seconds"`
+	DiffPackages  bool          `json:"diff_packages" db:"diff_packages"`
 }

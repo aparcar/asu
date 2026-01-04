@@ -10,8 +10,8 @@ import (
 // RecordBuildStat records a statistical event
 func (db *DB) RecordBuildStat(stat *models.BuildStat) error {
 	query := `
-		INSERT INTO build_stats (timestamp, event_type, version, target, profile, duration_seconds)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO build_stats (timestamp, event_type, version, target, profile, duration_seconds, diff_packages)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := db.Exec(query,
@@ -21,6 +21,7 @@ func (db *DB) RecordBuildStat(stat *models.BuildStat) error {
 		stat.Target,
 		stat.Profile,
 		stat.DurationSecs,
+		stat.DiffPackages,
 	)
 
 	if err != nil {
@@ -107,7 +108,7 @@ func (db *DB) CleanOldStats(daysToKeep int) error {
 }
 
 // RecordEvent is a convenience function to record a build event
-func (db *DB) RecordEvent(eventType models.StatEventType, version, target, profile string, durationSecs int) error {
+func (db *DB) RecordEvent(eventType models.StatEventType, version, target, profile string, durationSecs int, diffPackages bool) error {
 	stat := &models.BuildStat{
 		Timestamp:    time.Now(),
 		EventType:    eventType,
@@ -115,6 +116,7 @@ func (db *DB) RecordEvent(eventType models.StatEventType, version, target, profi
 		Target:       target,
 		Profile:      profile,
 		DurationSecs: durationSecs,
+		DiffPackages: diffPackages,
 	}
 	return db.RecordBuildStat(stat)
 }
