@@ -42,6 +42,9 @@ func NewServer(database *db.DB, cfg *config.Config) *Server {
 
 // setupRoutes configures the API routes
 func (s *Server) setupRoutes() {
+	// Web UI routes
+	s.setupWebRoutes()
+
 	// API v1 routes
 	v1 := s.router.Group("/api/v1")
 	{
