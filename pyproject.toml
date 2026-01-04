@@ -46,7 +46,3 @@ title           = "ASU Server Regression Test Coverage"
 testpaths = [
     "tests"
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
