@@ -154,6 +154,51 @@ Get build statistics grouped by day.
 **GET /api/v1/builds-by-version?weeks=26**
 Get build statistics grouped by version.
 
+**GET /api/v1/diff-packages-stats?days=30**
+Get statistics about diff_packages option usage.
+
+Response:
+```json
+{
+  "total_builds": 1000,
+  "diff_packages_true": 750,
+  "diff_packages_false": 250,
+  "percentage_true": 75.0,
+  "percentage_false": 25.0
+}
+```
+
+**GET /api/v1/diff-packages-by-version?weeks=26**
+Get diff_packages statistics grouped by version.
+
+Response:
+```json
+[
+  {
+    "version": "23.05.0",
+    "total_builds": 500,
+    "diff_packages_true": 400,
+    "diff_packages_false": 100,
+    "percentage_true": 80.0
+  }
+]
+```
+
+**GET /api/v1/diff-packages-trend?days=30**
+Get daily trend of diff_packages usage.
+
+Response:
+```json
+[
+  {
+    "date": "2024-01-01",
+    "diff_packages_true": 50,
+    "diff_packages_false": 10,
+    "total": 60
+  }
+]
+```
+
 ## Database Schema
 
 See `migrations/001_initial_schema.sql` for the complete schema.
