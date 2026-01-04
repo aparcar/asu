@@ -1,6 +1,16 @@
 # ASU Builder (Go)
 
-A high-performance firmware builder service written in Go with SQLite storage.
+A high-performance firmware builder service written in Go with SQLite storage and a modern web interface.
+
+## Features
+
+✨ **Modern Web UI** - Bootstrap 5 interface with real-time dashboards
+🚀 **Single Binary** - All-in-one server and worker deployment
+💾 **SQLite Storage** - Embedded database with no external dependencies
+📊 **Live Statistics** - Chart.js visualizations with auto-refresh
+🐳 **Podman Integration** - Official Go bindings for container management
+🔄 **Background Workers** - Concurrent job processing
+📡 **RESTful API** - Compatible with existing ASU clients
 
 ## Architecture
 
@@ -8,6 +18,7 @@ The Go builder is a single binary that runs both the HTTP API server and backgro
 
 - **SQLite Database**: Stores build requests, jobs, results, and statistics
 - **Podman Integration**: Uses official Podman Go bindings for container management
+- **Web Interface**: Bootstrap-based UI with Chart.js visualizations
 - **HTTP API**: RESTful API compatible with existing ASU clients
 - **Background Workers**: Concurrent job processing with configurable worker count
 - **Package Changes Service**: Calls external service for package modifications
@@ -100,6 +111,38 @@ export ASU_WORKER_CONCURRENT=4
 # With config file
 ./asu-builder
 ```
+
+Once running, access the web interface at `http://localhost:8080`
+
+## Web Interface
+
+The builder includes a modern web interface with:
+
+### Overview Dashboard (`/`)
+- Real-time queue length and build statistics
+- 7-day build activity chart
+- Version popularity analysis
+- Diff packages usage breakdown
+- System information display
+
+### Status Monitor (`/status`)
+- Live build queue monitoring
+- Build status lookup by request hash
+- Submit new builds through web form
+- Auto-refresh every 10 seconds
+
+### Statistics (`/stats`)
+- Daily build trends visualization
+- Version statistics with cache hit rates
+- Diff packages trend analysis
+- Detailed statistics tables
+- Configurable time ranges (7/30/90 days)
+
+### Configuration (`/config`)
+- View all server, database, and build settings
+- Container configuration display
+- Worker settings overview
+- Environment variables reference
 
 ## API Endpoints
 
