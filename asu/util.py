@@ -11,9 +11,9 @@ from tarfile import TarFile
 from io import BytesIO
 from typing import Optional
 
-import hishel
 import nacl.signing
 from fastapi import FastAPI
+import httpx
 from httpx import Response
 from podman import PodmanClient
 from podman.domain.containers import Container
@@ -27,6 +27,9 @@ from asu.config import settings
 log: logging.Logger = logging.getLogger("rq.worker")
 log.propagate = False  # Suppress duplicate log messages.
 
+# Create a shared HTTP client
+_http_client = httpx.Client()
+
 
 def get_redis_client(unicode: bool = True) -> redis.client.Redis:
     return redis.from_url(settings.redis_url, decode_responses=unicode)
@@ -36,11 +39,8 @@ def get_redis_ts():
     return get_redis_client().ts()
 
 
-def client_get(url: str, ttl: int = 3600) -> Response:
-    return hishel.CacheClient(
-        storage=hishel.RedisStorage(client=get_redis_client(False), ttl=ttl),
-        controller=hishel.Controller(always_revalidate=True, allow_heuristics=True),
-    ).get(url)
+def client_get(url: str) -> Response:
+    return _http_client.get(url)
 
 
 def add_timestamp(key: str, labels: dict[str, str] = {}, value: int = 1) -> None:
@@ -502,12 +502,6 @@ def reload_versions(app: FastAPI) -> bool:
         log.info(f".versions.json: failed to download {response.status_code}")
         return False
 
-    if response.extensions["from_cache"] and app.versions:
-        log.debug(".versions.json: cache hit")
-        return False
-
-    log.debug(".versions.json: cache miss, reloading")
-
     versions_upstream = response.json()
     upcoming_version = versions_upstream["upcoming_version"]
 
@@ -551,9 +545,6 @@ def reload_targets(app: FastAPI, version: str) -> bool:
     branch_data = get_branch(version)
     version_path = branch_data["path"].format(version=version)
     response = client_get(settings.upstream_url + f"/{version_path}/.targets.json")
-
-    if response.extensions["from_cache"] and app.targets[version]:
-        return False
 
     app.targets[version] = response.json() if response.status_code == 200 else {}
 

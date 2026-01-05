@@ -59,6 +59,16 @@ def apply_package_changes(build_request: BuildRequest):
             build_request.packages.remove("auc")
             _add_if_missing("owut")
 
+        if build_request.profile in {"tplink_archer-c6-v2"}:
+            _add_if_missing("ipq-wifi-tplink_archer-c6-v2")
+
+        if build_request.target in {
+            "mediatek/filogic",
+            "mediatek/mt7622",
+            "mediatek/mt7623",
+        }:
+            _add_if_missing("fitblk")
+
     # 25.12 specific changes
     if build_request.version.startswith("25.12"):
         # Changes for https://github.com/openwrt/openwrt/commit/8a7239009c5f4b28b696042b70ed1f8f89902915

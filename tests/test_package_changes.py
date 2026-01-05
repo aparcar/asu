@@ -106,8 +106,9 @@ def test_apply_package_changes_lang_packs():
     build_request.version = "24.10.0-rc5"
     apply_package_changes(build_request)
 
-    assert len(build_request.packages) == 4
+    assert len(build_request.packages) == 5
     assert build_request.packages[0] == "luci-i18n-package-manager-ko"
     assert build_request.packages[1] == "luci-i18n-xinetd-lt"
     assert build_request.packages[2] == "luci-i18n-package-manager-zh-cn"
     assert build_request.packages[3] == "kmod-mt7622-firmware"
+    assert build_request.packages[4] == "fitblk"

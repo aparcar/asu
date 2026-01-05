@@ -2,16 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app/
 
-RUN pip install poetry
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-COPY poetry.lock pyproject.toml README.md ./
+# Copy dependency files
+COPY pyproject.toml README.md ./
 
-RUN poetry config virtualenvs.create false
+# Install dependencies (without dev dependencies)
+# Using --no-dev to exclude optional dev dependencies
+RUN uv sync --frozen --no-dev || uv sync --no-dev
 
-RUN poetry install --only main --no-root --no-directory
-
+# Copy application code
 COPY ./asu/ ./asu/
 
-RUN poetry install --only main
-
-CMD uvicorn --host 0.0.0.0 'asu.main:app'
+# Run the application
+CMD uv run uvicorn --host 0.0.0.0 'asu.main:app'

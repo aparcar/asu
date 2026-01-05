@@ -176,25 +176,28 @@ pasta_options = [
 
 ### Development
 
-After cloning this repository, install `poetry` which manages the Python
+After cloning this repository, install `uv` which manages the Python
 dependencies.
 
 ```bash
-apt install python3-poetry
-poetry install
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync --extra dev
 ```
 
 #### Running the server
 
 ```bash
-poetry run fastapi dev asu/main.py
+uv run fastapi dev asu/main.py
 ```
 
 #### Running a worker
 
 ```bash
-source .env # poetry does not load .env
-poetry run rq worker
+source .env
+uv run rq worker
 ```
 
 ### API

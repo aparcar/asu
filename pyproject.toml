@@ -1,30 +1,33 @@
-[tool.poetry]
+[project]
 name = "asu"
 version = "0.0.0"
 description = "A firmware on demand server for OpenWrt based distributions"
-authors = ["Paul Spooren <mail@aparcar.org>"]
+authors = [
+    {name = "Paul Spooren", email = "mail@aparcar.org"}
+]
 readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.119.0",
+    "pynacl>=1.6.0",
+    "podman>=5.6.0",
+    "redis>=6.4.0",
+    "pydantic-settings>=2.12.0",
+    "rq>=2.6.0",
+    "uvicorn>=0.37.0",
+    "fastapi-cache2>=0.2.2",
+    "httpx>=0.28.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = { extras = ["standard"], version = "^0.119.0" }
-pynacl = "^1.6.0"
-podman = "^5.6.0"
-redis = "^6.4.0"
-pydantic-settings = "^2.12.0"
-rq = "^2.6.0"
-uvicorn = "^0.37.0"
-fastapi-cache2 = "^0.2.2"
-httpx = "^0.28.1"
-hishel = "^0.1.3"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.4.2"
-ruff = "^0.14.9"
-coverage = "^7.13.0"
-isort = "^7.0.0"
-fakeredis = "^2.32.0"
-pytest-httpserver = "^1.1.3"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.14.9",
+    "coverage>=7.13.0",
+    "isort>=7.0.0",
+    "fakeredis>=2.32.0",
+    "pytest-httpserver>=1.1.3",
+]
 
 
 [tool.coverage.run]
@@ -42,7 +45,3 @@ title           = "ASU Server Regression Test Coverage"
 testpaths = [
     "tests"
 ]
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
