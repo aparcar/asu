@@ -45,17 +45,14 @@ def add_timestamp(key: str, labels: dict[str, str] = {}, value: int = 1) -> None
     """
     if not settings.server_stats:
         return
-    
+
     log.debug(f"Adding timestamp to {key}: {labels}")
-    
+
     from asu.database import get_session, BuildStats
-    
+
     session = get_session()
     try:
-        stat = BuildStats(
-            event_type=key,
-            event_metadata={**labels, "value": value}
-        )
+        stat = BuildStats(event_type=key, event_metadata={**labels, "value": value})
         session.add(stat)
         session.commit()
     except Exception as e:
@@ -95,6 +92,7 @@ def get_queue():
         Queue: The current work queue
     """
     from asu.job_queue import get_queue as get_job_queue
+
     return get_job_queue()
 
 

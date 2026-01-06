@@ -266,7 +266,9 @@ class Queue:
         """
         self.max_workers = max_workers
         self.is_async = is_async
-        self._executor = ThreadPoolExecutor(max_workers=max_workers) if is_async else None
+        self._executor = (
+            ThreadPoolExecutor(max_workers=max_workers) if is_async else None
+        )
         log.info(f"Queue initialized with {max_workers} workers (async={is_async})")
 
     def enqueue(
@@ -321,7 +323,9 @@ class Queue:
 
         # Execute job
         if self.is_async:
-            future = self._executor.submit(self._execute_job, job_id, func, args, kwargs)
+            future = self._executor.submit(
+                self._execute_job, job_id, func, args, kwargs
+            )
             job._future = future
         else:
             # Synchronous execution for testing

@@ -55,8 +55,10 @@ def _build(build_request: BuildRequest, job=None):
         class MinimalJob:
             def __init__(self):
                 self.meta = {}
+
             def save_meta(self):
                 pass
+
         job = MinimalJob()
 
     job.meta["detail"] = "init"
@@ -178,7 +180,7 @@ def _build(build_request: BuildRequest, job=None):
 
     # Parse timeout locally instead of using rq.utils.parse_timeout
     from asu.job_queue import parse_timeout
-    
+
     container = podman.containers.create(
         image,
         command=["sleep", str(parse_timeout(settings.job_timeout))],

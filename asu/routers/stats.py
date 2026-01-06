@@ -30,7 +30,7 @@ def start_stop(duration, interval):
 def get_builds_per_day() -> dict:
     """
     Get builds per day statistics.
-    
+
     This is a simplified implementation using SQLite.
     TODO: Implement TimeSeries-style aggregation for better performance.
     """
@@ -40,13 +40,13 @@ def get_builds_per_day() -> dict:
     start, stop, stamps, labels = start_stop(N_DAYS, DAY_MS)
 
     from asu.database import get_session, BuildStats
-    
+
     session = get_session()
     try:
         # Convert timestamps from milliseconds to datetime
         start_dt = dt.fromtimestamp(start / 1000, UTC)
         stop_dt = dt.fromtimestamp(stop / 1000, UTC)
-        
+
         # Query stats for each event type
         def get_dataset(event: str, color: str) -> dict:
             """Get dataset for a specific event type."""
@@ -60,7 +60,7 @@ def get_builds_per_day() -> dict:
                 )
                 .all()
             )
-            
+
             # Group by day
             data_map = {}
             for stat in stats:
@@ -69,7 +69,7 @@ def get_builds_per_day() -> dict:
                 bucket_index = (timestamp_ms - start) // DAY_MS
                 bucket_timestamp = start + (bucket_index * DAY_MS)
                 data_map[bucket_timestamp] = data_map.get(bucket_timestamp, 0) + 1
-            
+
             return {
                 "label": event.title(),
                 "data": [data_map.get(stamp, 0) for stamp in stamps],
@@ -92,13 +92,13 @@ def get_builds_per_day() -> dict:
 @router.get("/builds-by-version")
 def get_builds_by_version(branch: str = None) -> dict:
     """Get builds by version.
-    
+
     If 'branch' is None, then data will be returned "by branch",
     so you get one curve for each of 23.05, 24.10, 25.12 etc.
 
     If you specify a branch, say "24.10", then the results are for
     all versions on that branch, 24.10.0, 24.1.1 and so on.
-    
+
     This is a simplified implementation using SQLite.
     TODO: Implement TimeSeries-style aggregation for better performance.
     """
@@ -111,13 +111,13 @@ def get_builds_by_version(branch: str = None) -> dict:
     start, stop, stamps, labels = start_stop(duration, interval)
 
     from asu.database import get_session, BuildStats
-    
+
     session = get_session()
     try:
         # Convert timestamps from milliseconds to datetime
         start_dt = dt.fromtimestamp(start / 1000, UTC)
         stop_dt = dt.fromtimestamp(stop / 1000, UTC)
-        
+
         # Query stats for builds
         stats = (
             session.query(BuildStats)
@@ -128,23 +128,23 @@ def get_builds_by_version(branch: str = None) -> dict:
             )
             .all()
         )
-        
+
         bucket = {}
-        
+
         for stat in stats:
             version = stat.event_metadata.get("version", "unknown")
-            
+
             if branch and not version.startswith(branch):
                 continue
             elif branch is None and "." in version:
                 version = version[:5]
-            
+
             if version not in bucket:
                 bucket[version] = [0.0] * len(stamps)
-            
+
             timestamp_ms = int(stat.timestamp.timestamp() * 1000)
             bucket_index = (timestamp_ms - start) // interval
-            
+
             if 0 <= bucket_index < len(stamps):
                 bucket[version][bucket_index] += 1
 
@@ -160,4 +160,3 @@ def get_builds_by_version(branch: str = None) -> dict:
         }
     finally:
         session.close()
-

@@ -4,11 +4,9 @@ This module provides SQLAlchemy models and database utilities for managing
 build jobs and statistics without requiring Redis.
 """
 
-import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from sqlalchemy import (
     JSON,
