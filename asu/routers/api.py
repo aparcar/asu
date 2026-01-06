@@ -208,48 +208,6 @@ def build_job_response(job) -> tuple[dict, int, dict]:
     return response, status_code, headers
 
 
-def return_job_v1(job) -> tuple[dict, int, dict]:
-    response: dict = job.get_meta()
-    imagebuilder_status: str = "done"
-    queue_position: int = 0
-
-    if job.meta:
-        response.update(job.meta)
-
-    if job.is_failed:
-        error_message: str = job.latest_result().exc_string
-        if "stderr" in response:
-            error_message = response["stderr"] + "\n" + error_message
-        detail: str = response.get("detail", "failed")
-        if detail == "init":  # Happens when container startup fails.
-            detail = "failed"
-        response.update(status=500, detail=detail, stderr=error_message)
-        imagebuilder_status = "failed"
-
-    elif job.is_queued:
-        queue_position = job.get_position() or 0
-        response.update(status=202, detail="queued", queue_position=queue_position)
-        imagebuilder_status = "queued"
-
-    elif job.is_started:
-        response.update(status=202, detail="started")
-        imagebuilder_status = response.get("imagebuilder_status", "init")
-
-    elif job.is_finished:
-        response.update(status=200, **job.return_value())
-        imagebuilder_status = "done"
-
-    headers = {
-        "X-Imagebuilder-Status": imagebuilder_status,
-        "X-Queue-Position": str(queue_position),
-    }
-
-    response.update(enqueued_at=job.enqueued_at, request_hash=job.id)
-
-    logging.debug(response)
-    return response, response["status"], headers
-
-
 @router.head("/build/{request_hash}")
 @router.get("/build/{request_hash}")
 def api_v1_build_get(request: Request, request_hash: str, response: Response) -> dict:
