@@ -17,26 +17,15 @@ import httpx
 from httpx import Response
 from podman import PodmanClient
 from podman.domain.containers import Container
-from rq import Queue
-from rq.job import Job
 
-import redis
 from asu.build_request import BuildRequest
 from asu.config import settings
 
-log: logging.Logger = logging.getLogger("rq.worker")
+log: logging.Logger = logging.getLogger("asu.worker")
 log.propagate = False  # Suppress duplicate log messages.
 
 # Create a shared HTTP client
 _http_client = httpx.Client()
-
-
-def get_redis_client(unicode: bool = True) -> redis.client.Redis:
-    return redis.from_url(settings.redis_url, decode_responses=unicode)
-
-
-def get_redis_ts():
-    return get_redis_client().ts()
 
 
 def client_get(url: str) -> Response:
@@ -44,16 +33,33 @@ def client_get(url: str) -> Response:
 
 
 def add_timestamp(key: str, labels: dict[str, str] = {}, value: int = 1) -> None:
+    """Add a timestamp/stats event to the database.
+
+    This is a simplified implementation that stores stats in SQLite.
+    TODO: Implement TimeSeries-style aggregation if needed.
+
+    Args:
+        key: Stats key
+        labels: Metadata labels
+        value: Value to record
+    """
     if not settings.server_stats:
         return
+
     log.debug(f"Adding timestamp to {key}: {labels}")
-    get_redis_ts().add(
-        key,
-        value=value,
-        timestamp="*",
-        labels=labels,
-        duplicate_policy="sum",
-    )
+
+    from asu.database import get_session, BuildStats
+
+    session = get_session()
+    try:
+        stat = BuildStats(event_type=key, event_metadata={**labels, "value": value})
+        session.add(stat)
+        session.commit()
+    except Exception as e:
+        log.warning(f"Failed to add timestamp: {e}")
+        session.rollback()
+    finally:
+        session.close()
 
 
 def add_build_event(event: str) -> None:
@@ -79,13 +85,15 @@ def add_build_event(event: str) -> None:
     add_timestamp(key, {"stats": "summary"})
 
 
-def get_queue() -> Queue:
+def get_queue():
     """Return the current queue
 
     Returns:
-        Queue: The current RQ work queue
+        Queue: The current work queue
     """
-    return Queue(connection=get_redis_client(False), is_async=settings.async_queue)
+    from asu.job_queue import get_queue as get_job_queue
+
+    return get_job_queue()
 
 
 def get_branch(version_or_branch: str) -> dict[str, str]:
@@ -321,7 +329,7 @@ def run_cmd(
     return returncode, stdout, stderr
 
 
-def report_error(job: Job, msg: str) -> None:
+def report_error(job, msg: str) -> None:
     log.warning(f"Error: {msg}")
     job.meta["detail"] = f"Error: {msg}"
     job.meta["imagebuilder_status"] = "failed"

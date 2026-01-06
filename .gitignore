@@ -26,3 +26,6 @@ asu.egg-info/
 .coverage
 **/__pycache__/
 *.pyc
+*.db
+*.db-shm
+*.db-wal
