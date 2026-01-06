@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Union
 from time import perf_counter
 
-from rq import get_current_job
-from rq.utils import parse_timeout
 from podman import errors
 
 from asu.build_request import BuildRequest
@@ -31,7 +29,7 @@ from asu.util import (
     run_cmd,
 )
 
-log = logging.getLogger("rq.worker")
+log = logging.getLogger("asu.worker")
 
 
 def _build(build_request: BuildRequest, job=None):
@@ -40,7 +38,8 @@ def _build(build_request: BuildRequest, job=None):
     The `request` dict contains properties of the requested image.
 
     Args:
-        request (dict): Contains all properties of requested image
+        build_request: BuildRequest object containing all properties of requested image
+        job: Job object for tracking build progress
     """
 
     build_start: float = perf_counter()
@@ -50,7 +49,16 @@ def _build(build_request: BuildRequest, job=None):
     bin_dir.mkdir(parents=True, exist_ok=True)
     log.debug(f"Bin dir: {bin_dir}")
 
-    job = job or get_current_job()
+    # Job is now passed as parameter instead of using get_current_job()
+    if job is None:
+        # Create a minimal job-like object for testing
+        class MinimalJob:
+            def __init__(self):
+                self.meta = {}
+            def save_meta(self):
+                pass
+        job = MinimalJob()
+
     job.meta["detail"] = "init"
     job.meta["imagebuilder_status"] = "init"
     job.meta["request"] = build_request
@@ -168,6 +176,9 @@ def _build(build_request: BuildRequest, job=None):
 
     log.debug("Mounts: %s", mounts)
 
+    # Parse timeout locally instead of using rq.utils.parse_timeout
+    from asu.job_queue import parse_timeout
+    
     container = podman.containers.create(
         image,
         command=["sleep", str(parse_timeout(settings.job_timeout))],

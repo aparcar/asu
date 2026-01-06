@@ -11,9 +11,8 @@ dependencies = [
     "fastapi[standard]>=0.119.0",
     "pynacl>=1.6.0",
     "podman>=5.6.0",
-    "redis>=6.4.0",
     "pydantic-settings>=2.12.0",
-    "rq>=2.6.0",
+    "sqlalchemy>=2.0.0",
     "uvicorn>=0.37.0",
     "fastapi-cache2>=0.2.2",
     "httpx>=0.28.1",
@@ -25,7 +24,6 @@ dev = [
     "ruff>=0.14.9",
     "coverage>=7.13.0",
     "isort>=7.0.0",
-    "fakeredis>=2.32.0",
     "pytest-httpserver>=1.1.3",
 ]
 

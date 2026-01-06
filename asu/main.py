@@ -28,6 +28,39 @@ logging.basicConfig(encoding="utf-8", level=settings.log_level)
 base_path = Path(__file__).resolve().parent
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and job queue on startup."""
+    from asu.database import init_database
+    from asu.job_queue import init_queue
+    
+    # Initialize database
+    init_database(settings.database_path)
+    
+    # Initialize job queue
+    init_queue(max_workers=settings.worker_threads, is_async=settings.async_queue)
+    
+    logging.info(f"Database initialized at {settings.database_path}")
+    logging.info(f"Job queue initialized with {settings.worker_threads} workers")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup database and job queue on shutdown."""
+    from asu.database import close_database
+    from asu.job_queue import shutdown_queue
+    
+    # Shutdown job queue
+    shutdown_queue(wait=True)
+    
+    # Close database connections
+    close_database()
+    
+    logging.info("Application shutdown complete")
+
+
 app.include_router(api.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 

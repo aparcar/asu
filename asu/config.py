@@ -64,7 +64,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     public_path: Path = Path.cwd() / "public"
-    redis_url: str = "redis://localhost:6379"
+    database_path: Path = None  # Will default to public_path / "asu.db"
+    worker_threads: int = 4
     upstream_url: str = "https://downloads.openwrt.org"
     allow_defaults: bool = False
     async_queue: bool = True
@@ -97,6 +98,12 @@ class Settings(BaseSettings):
     build_failure_ttl: str = "10m"
     max_pending_jobs: int = 200
     job_timeout: str = "10m"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Set default database_path if not provided
+        if self.database_path is None:
+            self.database_path = self.public_path / "asu.db"
 
 
 settings = Settings()
