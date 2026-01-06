@@ -54,17 +54,25 @@ def _build(build_request: BuildRequest, job=None):
         # Create a minimal job-like object for testing
         class MinimalJob:
             def __init__(self):
-                self.meta = {}
+                self._meta = {}
+
+            @property
+            def meta(self):
+                return self._meta
+
+            def update_meta(self, updates):
+                self._meta.update(updates)
 
             def save_meta(self):
                 pass
 
         job = MinimalJob()
 
-    job.meta["detail"] = "init"
-    job.meta["imagebuilder_status"] = "init"
-    job.meta["request"] = build_request
-    job.save_meta()
+    job.update_meta({
+        "detail": "init",
+        "imagebuilder_status": "init",
+        "request": build_request.model_dump(),
+    })
 
     log.debug(f"Building {build_request}")
 
@@ -101,8 +109,7 @@ def _build(build_request: BuildRequest, job=None):
             }
         )
 
-    job.meta["imagebuilder_status"] = "container_setup"
-    job.save_meta()
+    job.update_meta({"imagebuilder_status": "container_setup"})
 
     log.info(f"Pulling {image}...")
     try:

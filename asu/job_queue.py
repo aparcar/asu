@@ -1,7 +1,7 @@
 """Thread-based job queue implementation to replace RQ.
 
-This module provides Queue and Job classes that mimic RQ's interface but use
-SQLite and threading instead of Redis.
+This module provides Queue and BuildJob classes for managing firmware build jobs
+using SQLite and threading.
 """
 
 import logging
@@ -42,62 +42,141 @@ def parse_timeout(timeout_str: str) -> int:
         return int(timeout_str)
 
 
-class Job:
-    """Job class that mimics RQ's Job interface.
-
-    This class wraps a database Job model and provides methods compatible
-    with RQ's Job API.
-    """
+class BuildJob:
+    """Represents a firmware build job with simplified state management."""
 
     def __init__(self, job_id: str):
-        """Initialize Job with job ID.
+        """Initialize BuildJob with job ID.
 
         Args:
             job_id: Unique job identifier
         """
         self.id = job_id
+        self._cached_state = None
         self._future: Optional[Future] = None
+        self._meta_cache = None  # Cache for meta dict to track modifications
 
-    @property
-    def meta(self) -> dict:
-        """Get job metadata.
+    def get_state(self, refresh: bool = False) -> Optional[dict]:
+        """Get full job state in one query.
+
+        Args:
+            refresh: Force refresh from database
 
         Returns:
-            Job metadata dictionary
+            dict with keys: id, status, meta, result, enqueued_at, started_at,
+            finished_at, exc_string, queue_position (if queued), or None if not found
+        """
+        if self._cached_state is None or refresh:
+            session = get_session()
+            try:
+                job_model = session.query(JobModel).filter_by(id=self.id).first()
+                if not job_model:
+                    return None
+
+                state = {
+                    "id": job_model.id,
+                    "status": job_model.status,
+                    "meta": job_model.meta or {},
+                    "result": job_model.result,
+                    "enqueued_at": job_model.enqueued_at,
+                    "started_at": job_model.started_at,
+                    "finished_at": job_model.finished_at,
+                    "exc_string": job_model.exc_string,
+                }
+
+                # Calculate queue position if queued
+                if job_model.status == "queued":
+                    position = (
+                        session.query(JobModel)
+                        .filter(
+                            JobModel.status == "queued",
+                            JobModel.enqueued_at < job_model.enqueued_at,
+                        )
+                        .count()
+                    )
+                    state["queue_position"] = position
+                else:
+                    state["queue_position"] = None
+
+                self._cached_state = state
+                self._meta_cache = None  # Invalidate meta cache when state refreshes
+            finally:
+                session.close()
+
+        return self._cached_state
+
+    def update_meta(self, meta_updates: dict):
+        """Update job metadata efficiently.
+
+        Args:
+            meta_updates: Dictionary of metadata to update/add
         """
         session = get_session()
         try:
             job_model = session.query(JobModel).filter_by(id=self.id).first()
             if job_model:
-                return job_model.meta or {}
-            return {}
+                current_meta = dict(job_model.meta or {})
+                current_meta.update(meta_updates)
+                # Force SQLAlchemy to detect the change by creating a new dict
+                job_model.meta = current_meta
+                # Mark the attribute as modified to ensure SQLAlchemy detects the change
+                from sqlalchemy.orm import attributes
+                attributes.flag_modified(job_model, "meta")
+                session.commit()
+                # Invalidate caches
+                self._cached_state = None
+                self._meta_cache = None
         finally:
             session.close()
 
-    def get_meta(self) -> dict:
-        """Get job metadata (alias for meta property).
+    def update_status(self, status: str, **fields):
+        """Update job status and optional fields.
 
-        Returns:
-            Job metadata dictionary
+        Args:
+            status: New status (queued, started, finished, failed)
+            **fields: Additional fields to update (result, exc_string, etc.)
         """
-        return self.meta
+        session = get_session()
+        try:
+            job_model = session.query(JobModel).filter_by(id=self.id).first()
+            if job_model:
+                job_model.status = status
+                for key, value in fields.items():
+                    setattr(job_model, key, value)
+                session.commit()
+                # Invalidate caches
+                self._cached_state = None
+                self._meta_cache = None
+        finally:
+            session.close()
 
-    def save_meta(self) -> None:
-        """Save job metadata to database.
+    @property
+    def status(self) -> Optional[str]:
+        """Get current job status."""
+        state = self.get_state()
+        return state["status"] if state else None
 
-        Note: Since meta is accessed via property, this method ensures
-        any changes to meta are persisted.
+    @property
+    def meta(self) -> dict:
+        """Get job metadata.
+        
+        Returns a dict that can be modified. Call save_meta() to persist changes.
         """
-        # Meta is accessed and saved via the meta property setter
-        # This method is here for API compatibility
-        pass
+        if self._meta_cache is None:
+            state = self.get_state()
+            if state:
+                # Create a copy so modifications don't affect cached state
+                self._meta_cache = dict(state["meta"])
+            else:
+                self._meta_cache = {}
+        return self._meta_cache
 
     @meta.setter
     def meta(self, value: dict) -> None:
         """Set job metadata.
 
         Args:
-            value: Metadata dictionary to set
+            value: Metadata dictionary to set (replaces all existing metadata)
         """
         session = get_session()
         try:
@@ -105,150 +184,26 @@ class Job:
             if job_model:
                 job_model.meta = value
                 session.commit()
+                # Invalidate caches
+                self._cached_state = None
+                self._meta_cache = None
         finally:
             session.close()
 
-    def set_meta(self, key: str, value: Any) -> None:
-        """Set a specific metadata key.
-
-        Args:
-            key: Metadata key
-            value: Value to set
+    def save_meta(self) -> None:
+        """Save current metadata to database.
+        
+        This persists any modifications made to the dict returned by the meta property.
         """
-        current_meta = self.meta
-        current_meta[key] = value
-        self.meta = current_meta
+        if self._meta_cache is not None:
+            # Save the modified meta cache
+            self.meta = self._meta_cache
 
     @property
     def enqueued_at(self) -> Optional[datetime]:
-        """Get when the job was enqueued.
-
-        Returns:
-            Enqueue timestamp
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            if job_model:
-                return job_model.enqueued_at
-            return None
-        finally:
-            session.close()
-
-    def get_position(self) -> Optional[int]:
-        """Get position in queue.
-
-        Returns:
-            Position in queue (0-based), or None if not queued
-        """
-        if not self.is_queued:
-            return None
-
-        session = get_session()
-        try:
-            # Count jobs that were enqueued before this one and are still queued
-            position = (
-                session.query(JobModel)
-                .filter(
-                    JobModel.status == "queued",
-                    JobModel.enqueued_at < self.enqueued_at,
-                )
-                .count()
-            )
-            return position
-        finally:
-            session.close()
-
-    @property
-    def is_queued(self) -> bool:
-        """Check if job is queued.
-
-        Returns:
-            True if job is queued
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            return job_model.status == "queued" if job_model else False
-        finally:
-            session.close()
-
-    @property
-    def is_started(self) -> bool:
-        """Check if job has started.
-
-        Returns:
-            True if job is started
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            return job_model.status == "started" if job_model else False
-        finally:
-            session.close()
-
-    @property
-    def is_finished(self) -> bool:
-        """Check if job is finished.
-
-        Returns:
-            True if job is finished
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            return job_model.status == "finished" if job_model else False
-        finally:
-            session.close()
-
-    @property
-    def is_failed(self) -> bool:
-        """Check if job has failed.
-
-        Returns:
-            True if job failed
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            return job_model.status == "failed" if job_model else False
-        finally:
-            session.close()
-
-    def latest_result(self):
-        """Get the latest result (for failed jobs, contains exception).
-
-        Returns:
-            Result object with exc_string attribute
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            if job_model:
-
-                class Result:
-                    def __init__(self, exc_string):
-                        self.exc_string = exc_string
-
-                return Result(job_model.exc_string)
-            return None
-        finally:
-            session.close()
-
-    def return_value(self) -> Any:
-        """Get the return value for finished jobs.
-
-        Returns:
-            Job result
-        """
-        session = get_session()
-        try:
-            job_model = session.query(JobModel).filter_by(id=self.id).first()
-            if job_model:
-                return job_model.result
-            return None
-        finally:
-            session.close()
+        """Get when the job was enqueued."""
+        state = self.get_state()
+        return state["enqueued_at"] if state else None
 
 
 class Queue:
@@ -280,7 +235,7 @@ class Queue:
         failure_ttl: Optional[str] = None,
         job_timeout: Optional[str] = None,
         **kwargs,
-    ) -> Job:
+    ) -> BuildJob:
         """Enqueue a job for execution.
 
         Args:
@@ -293,7 +248,7 @@ class Queue:
             kwargs: Keyword arguments for function
 
         Returns:
-            Job object
+            BuildJob object
         """
         if not job_id:
             import uuid
@@ -319,7 +274,7 @@ class Queue:
         finally:
             session.close()
 
-        job = Job(job_id)
+        job = BuildJob(job_id)
 
         # Execute job
         if self.is_async:
@@ -358,7 +313,7 @@ class Queue:
             session.close()
 
             # Create Job wrapper to pass to function
-            job_wrapper = Job(job_id)
+            job_wrapper = BuildJob(job_id)
 
             # Execute function
             try:
@@ -390,20 +345,20 @@ class Queue:
             if session:
                 session.close()
 
-    def fetch_job(self, job_id: str) -> Optional[Job]:
+    def fetch_job(self, job_id: str) -> Optional[BuildJob]:
         """Fetch a job by ID.
 
         Args:
             job_id: Job ID
 
         Returns:
-            Job object or None
+            BuildJob object or None
         """
         session = get_session()
         try:
             job_model = session.query(JobModel).filter_by(id=job_id).first()
             if job_model:
-                return Job(job_id)
+                return BuildJob(job_id)
             return None
         finally:
             session.close()

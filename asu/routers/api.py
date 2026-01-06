@@ -140,6 +140,74 @@ def validate_request(
     return ({}, None)
 
 
+def build_job_response(job) -> tuple[dict, int, dict]:
+    """Build API response from job state.
+
+    Args:
+        job: BuildJob instance
+
+    Returns:
+        Tuple of (response_dict, status_code, headers_dict)
+    """
+    state = job.get_state(refresh=True)
+
+    if not state:
+        return {"status": 404, "detail": "Job not found"}, 404, {}
+
+    # Base response with metadata
+    response = {
+        "request_hash": state["id"],
+        "enqueued_at": state["enqueued_at"],
+        **state["meta"],  # Include all metadata
+    }
+
+    # Status-specific handling
+    status_code = 200
+    imagebuilder_status = "done"
+    queue_position = 0
+
+    if state["status"] == "queued":
+        status_code = 202
+        response["status"] = 202
+        response["detail"] = "queued"
+        response["queue_position"] = state.get("queue_position", 0)
+        queue_position = state.get("queue_position", 0)
+        imagebuilder_status = "queued"
+
+    elif state["status"] == "started":
+        status_code = 202
+        response["status"] = 202
+        response["detail"] = "started"
+        imagebuilder_status = state["meta"].get("imagebuilder_status", "init")
+
+    elif state["status"] == "finished":
+        status_code = 200
+        response["status"] = 200
+        if state["result"]:
+            response.update(state["result"])
+        imagebuilder_status = "done"
+
+    elif state["status"] == "failed":
+        status_code = 500
+        response["status"] = 500
+        error_message = state.get("exc_string", "Unknown error")
+        if "stderr" in state["meta"]:
+            error_message = state["meta"]["stderr"] + "\n" + error_message
+        detail = state["meta"].get("detail", "failed")
+        if detail == "init":
+            detail = "failed"
+        response.update(status=500, detail=detail, stderr=error_message)
+        imagebuilder_status = "failed"
+
+    headers = {
+        "X-Imagebuilder-Status": imagebuilder_status,
+        "X-Queue-Position": str(queue_position),
+    }
+
+    logging.debug(response)
+    return response, status_code, headers
+
+
 def return_job_v1(job) -> tuple[dict, int, dict]:
     response: dict = job.get_meta()
     imagebuilder_status: str = "done"
@@ -194,7 +262,7 @@ def api_v1_build_get(request: Request, request_hash: str, response: Response) ->
             "detail": "could not find provided request hash",
         }
 
-    content, status, headers = return_job_v1(job)
+    content, status, headers = build_job_response(job)
     response.headers.update(headers)
     response.status_code = status
 
@@ -259,10 +327,10 @@ def api_v1_build_post(
             job_timeout=settings.job_timeout,
         )
     else:
-        if job.is_finished:
+        if job.status == "finished":
             add_build_event("cache-hits")
 
-    content, status, headers = return_job_v1(job)
+    content, status, headers = build_job_response(job)
     response.headers.update(headers)
     response.status_code = status
 
