@@ -7,7 +7,7 @@ SQLite and threading instead of Redis.
 import logging
 import traceback
 from concurrent.futures import ThreadPoolExecutor, Future
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Callable, Optional
 
 from asu.database import get_session, Job as JobModel
@@ -109,15 +109,23 @@ class Job:
             session.close()
 
     def set_meta(self, key: str, value: Any) -> None:
-        """Set a specific metadata key.
+        """Set a specific metadata key atomically.
 
         Args:
             key: Metadata key
             value: Value to set
         """
-        current_meta = self.meta
-        current_meta[key] = value
-        self.meta = current_meta
+        session = get_session()
+        try:
+            # Use atomic update with JSON manipulation
+            job_model = session.query(JobModel).filter_by(id=self.id).first()
+            if job_model:
+                current_meta = job_model.meta or {}
+                current_meta[key] = value
+                job_model.meta = current_meta
+                session.commit()
+        finally:
+            session.close()
 
     @property
     def enqueued_at(self) -> Optional[datetime]:
@@ -353,9 +361,8 @@ class Queue:
                 return
 
             job_model.status = "started"
-            job_model.started_at = datetime.utcnow()
+            job_model.started_at = datetime.now(UTC)
             session.commit()
-            session.close()
 
             # Create Job wrapper to pass to function
             job_wrapper = Job(job_id)
@@ -367,28 +374,33 @@ class Queue:
 
                 # Update job with result
                 session = get_session()
-                job_model = session.query(JobModel).filter_by(id=job_id).first()
-                if job_model:
-                    job_model.status = "finished"
-                    job_model.result = result
-                    job_model.finished_at = datetime.utcnow()
-                    session.commit()
+                try:
+                    job_model = session.query(JobModel).filter_by(id=job_id).first()
+                    if job_model:
+                        job_model.status = "finished"
+                        job_model.result = result
+                        job_model.finished_at = datetime.now(UTC)
+                        session.commit()
+                finally:
+                    session.close()
                 log.info(f"Job {job_id} completed successfully")
 
             except Exception as e:
                 log.error(f"Job {job_id} failed: {e}", exc_info=True)
                 # Update job with error
                 session = get_session()
-                job_model = session.query(JobModel).filter_by(id=job_id).first()
-                if job_model:
-                    job_model.status = "failed"
-                    job_model.exc_string = traceback.format_exc()
-                    job_model.finished_at = datetime.utcnow()
-                    session.commit()
+                try:
+                    job_model = session.query(JobModel).filter_by(id=job_id).first()
+                    if job_model:
+                        job_model.status = "failed"
+                        job_model.exc_string = traceback.format_exc()
+                        job_model.finished_at = datetime.now(UTC)
+                        session.commit()
+                finally:
+                    session.close()
 
         finally:
-            if session:
-                session.close()
+            session.close()
 
     def fetch_job(self, job_id: str) -> Optional[Job]:
         """Fetch a job by ID.

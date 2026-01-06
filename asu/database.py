@@ -5,7 +5,7 @@ build jobs and statistics without requiring Redis.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import (
@@ -34,7 +34,7 @@ class Job(Base):
     status = Column(String, default="queued")  # queued, started, finished, failed
     meta = Column(JSON, default=dict)
     result = Column(JSON, nullable=True)
-    enqueued_at = Column(DateTime, default=datetime.utcnow)
+    enqueued_at = Column(DateTime, default=lambda: datetime.now(UTC))
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     failure_ttl = Column(Integer, nullable=True)  # in seconds
@@ -52,7 +52,7 @@ class BuildStats(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     event_type = Column(String, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
     event_metadata = Column(JSON, default=dict)
 
     def __repr__(self):
@@ -88,8 +88,8 @@ def init_database(database_path: Path) -> None:
     _engine = create_engine(
         database_url,
         connect_args={"check_same_thread": False},
-        pool_size=20,
-        max_overflow=0,
+        pool_size=5,
+        max_overflow=10,
         pool_pre_ping=True,
     )
 
@@ -121,7 +121,7 @@ def cleanup_expired_jobs() -> int:
     """
     session = get_session()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         expired_count = 0
 
         # Find expired finished jobs
