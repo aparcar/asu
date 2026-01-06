@@ -154,11 +154,12 @@ def build_job_response(job) -> tuple[dict, int, dict]:
     if not state:
         return {"status": 404, "detail": "Job not found"}, 404, {}
 
-    # Base response with metadata
+    # Base response with metadata (only include safe metadata fields)
+    meta = state.get("meta", {}) or {}
     response = {
         "request_hash": state["id"],
         "enqueued_at": state["enqueued_at"],
-        **state["meta"],  # Include all metadata
+        **meta,  # Include all metadata
     }
 
     # Status-specific handling
@@ -178,7 +179,7 @@ def build_job_response(job) -> tuple[dict, int, dict]:
         status_code = 202
         response["status"] = 202
         response["detail"] = "started"
-        imagebuilder_status = state["meta"].get("imagebuilder_status", "init")
+        imagebuilder_status = meta.get("imagebuilder_status", "init")
 
     elif state["status"] == "finished":
         status_code = 200
@@ -191,9 +192,9 @@ def build_job_response(job) -> tuple[dict, int, dict]:
         status_code = 500
         response["status"] = 500
         error_message = state.get("exc_string", "Unknown error")
-        if "stderr" in state["meta"]:
-            error_message = state["meta"]["stderr"] + "\n" + error_message
-        detail = state["meta"].get("detail", "failed")
+        if "stderr" in meta:
+            error_message = meta["stderr"] + "\n" + error_message
+        detail = meta.get("detail", "failed")
         if detail == "init":
             detail = "failed"
         response.update(status=500, detail=detail, stderr=error_message)

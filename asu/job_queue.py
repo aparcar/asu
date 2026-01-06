@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime
 from typing import Any, Callable, Optional
 
+from sqlalchemy.orm import attributes
+
 from asu.database import get_session, Job as JobModel
 
 log = logging.getLogger("asu.worker")
@@ -120,7 +122,6 @@ class BuildJob:
                 # Force SQLAlchemy to detect the change by creating a new dict
                 job_model.meta = current_meta
                 # Mark the attribute as modified to ensure SQLAlchemy detects the change
-                from sqlalchemy.orm import attributes
                 attributes.flag_modified(job_model, "meta")
                 session.commit()
                 # Invalidate caches
@@ -158,7 +159,7 @@ class BuildJob:
 
     @property
     def meta(self) -> dict:
-        """Get job metadata.
+        """Get job metadata as a mutable dictionary.
         
         Returns a dict that can be modified. Call save_meta() to persist changes.
         """
