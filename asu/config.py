@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     public_path: Path = Path.cwd() / "public"
-    database_path: Path = None  # Will default to public_path / "asu.db"
+    database_path: Optional[Path] = None  # Will default to public_path / "asu.db"
     worker_threads: int = 4
     upstream_url: str = "https://downloads.openwrt.org"
     allow_defaults: bool = False

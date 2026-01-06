@@ -55,7 +55,7 @@ class BuildStats(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     event_type = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
-    metadata = Column(JSON, default=dict)
+    event_metadata = Column(JSON, default=dict)
 
     def __repr__(self):
         return f"<BuildStats(event_type={self.event_type}, timestamp={self.timestamp})>"

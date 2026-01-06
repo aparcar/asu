@@ -54,7 +54,7 @@ def add_timestamp(key: str, labels: dict[str, str] = {}, value: int = 1) -> None
     try:
         stat = BuildStats(
             event_type=key,
-            metadata={**labels, "value": value}
+            event_metadata={**labels, "value": value}
         )
         session.add(stat)
         session.commit()
