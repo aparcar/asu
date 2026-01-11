@@ -19,6 +19,7 @@ from asu.util import (
     add_build_event,
     check_manifest,
     diff_packages,
+    error_log,
     fingerprint_pubkey_usign,
     get_branch,
     get_container_version_tag,
@@ -436,9 +437,10 @@ def _build(build_request: BuildRequest, job=None):
 def build(build_request: BuildRequest, job=None):
     try:
         result = _build(build_request, job)
-    except Exception:
+    except Exception as exc:
         # Log all build errors, including internal server errors.
         add_build_event("failures")
+        error_log.log_build_error(build_request, str(exc))
         raise
     else:
         add_build_event("successes")

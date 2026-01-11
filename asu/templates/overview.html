@@ -110,9 +110,36 @@
                     </p>
 
                     </details>
+
+                    <details id="build-errors-details">
+                        <summary><h2>Build Errors</h2></summary>
+                        <p>Recent build failures to help diagnose upstream imagebuilder and package issues.</p>
+                        <pre id="build-errors-content" class="error-log">Click to load...</pre>
+                    </details>
                 </div>
             </div>
         </div>
+
+        <script>
+            (function() {
+                const details = document.getElementById("build-errors-details");
+                const content = document.getElementById("build-errors-content");
+                let loaded = false;
+
+                details.addEventListener("toggle", async function() {
+                    if (details.open && !loaded) {
+                        content.textContent = "Loading...";
+                        try {
+                            const response = await fetch("/api/v1/build-errors");
+                            content.textContent = await response.text();
+                            loaded = true;
+                        } catch (error) {
+                            content.textContent = "Failed to load: " + error.message;
+                        }
+                    }
+                });
+            })();
+        </script>
 
 {% if server_stats %}
         <script src="static/chart.js"></script>

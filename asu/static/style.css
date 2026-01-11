@@ -338,3 +338,41 @@ td {
     margin: 2px;
     width: 1fr;
 }
+
+details {
+    margin-top: 1.5em;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.5em 1em;
+    background: #fafafa;
+}
+
+details summary {
+    cursor: pointer;
+    user-select: none;
+}
+
+details summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 1.2em;
+}
+
+details[open] summary {
+    margin-bottom: 0.5em;
+}
+
+.error-log {
+    background: #1a1a1a;
+    color: #c0c0c0;
+    padding: 1em;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.8em;
+    line-height: 1.5;
+    max-width: 800px;
+    max-height: 400px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}

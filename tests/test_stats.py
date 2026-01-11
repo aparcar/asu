@@ -1,5 +1,8 @@
 import time
+
 from fakeredis import FakeStrictRedis
+
+from asu.build_request import BuildRequest
 
 build_config_1 = dict(
     version="1.2.3",
@@ -172,3 +175,61 @@ def test_stats_builds_by_version(client, redis_server: FakeStrictRedis):
     data = response.json()
     assert len(data["labels"]) == 26
     assert len(data["datasets"][0]["data"]) == 26
+
+
+def test_build_error_log(client, test_path):
+    """Test that build errors are logged correctly."""
+    from asu.util import ErrorLog
+
+    # Create a fresh ErrorLog instance for testing
+    error_log = ErrorLog.__new__(ErrorLog)
+    error_log._initialized = False
+    error_log.__init__()
+
+    # Initially should have no errors
+    response = client.get("/api/v1/build-errors")
+    assert response.status_code == 200
+    assert "No build errors recorded" in response.text
+
+    # Log an error
+    build_request = BuildRequest(
+        distro="openwrt",
+        version="24.10-SNAPSHOT",
+        version_code="",
+        target="ath79/generic",
+        profile="tplink_tl-wdr4300-v1",
+        packages=["vim"],
+    )
+    error_log.log_build_error(build_request, "Test error message")
+
+    # Now check the error appears
+    entries = error_log.get_entries()
+    assert len(entries) == 1
+    assert "24.10-SNAPSHOT:ath79/generic:tplink_tl-wdr4300-v1" in entries[0]
+    assert "Test error message" in entries[0]
+
+    # Log another error
+    error_log.log_build_error(build_request, "Second error")
+    entries = error_log.get_entries()
+    assert len(entries) == 2
+    # Most recent should be first
+    assert "Second error" in entries[0]
+
+    # Test summary format
+    summary = error_log.get_summary()
+    assert "Build Errors: 2 entries" in summary
+    assert "Time range:" in summary
+
+
+def test_build_error_log_api(client, test_path):
+    """Test the /api/v1/build-errors endpoint."""
+    response = client.get("/api/v1/build-errors")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
+    # Test with custom n parameter
+    response = client.get("/api/v1/build-errors?n=50")
+    assert response.status_code == 200
+
+
+

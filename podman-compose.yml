@@ -11,6 +11,7 @@ services:
       REDIS_URL: "redis://redis:6379/0"
     volumes:
       - $PUBLIC_PATH/store:$PUBLIC_PATH/store:ro
+      - $PUBLIC_PATH/logs:$PUBLIC_PATH/logs:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
