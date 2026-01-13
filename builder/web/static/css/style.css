@@ -1,0 +1,171 @@
+:root {
+    --primary-color: #0d6efd;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #0dcaf0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Pulse animation for online indicator */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Card hover effect */
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Custom badge colors */
+.badge {
+    font-weight: 500;
+}
+
+/* Chart containers */
+canvas {
+    max-height: 400px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Stats cards */
+.card.text-white h6 {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+}
+
+.card.text-white h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+/* Table improvements */
+.table {
+    font-size: 0.9rem;
+}
+
+.table th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+}
+
+/* Progress bars */
+.progress {
+    height: 1.25rem;
+}
+
+/* Form improvements */
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* Alert improvements */
+.alert {
+    border: none;
+    border-left: 4px solid;
+}
+
+.alert-primary {
+    border-left-color: var(--primary-color);
+}
+
+.alert-success {
+    border-left-color: var(--success-color);
+}
+
+.alert-warning {
+    border-left-color: var(--warning-color);
+}
+
+.alert-danger {
+    border-left-color: var(--danger-color);
+}
+
+.alert-info {
+    border-left-color: var(--info-color);
+}
+
+/* Code blocks */
+code {
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 87.5%;
+}
+
+/* Loading spinner centered */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .card.text-white h2 {
+        font-size: 2rem;
+    }
+
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+}
+
+/* Custom utilities */
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.bg-teal {
+    background-color: #20c997 !important;
+}

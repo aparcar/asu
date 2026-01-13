@@ -1,0 +1,344 @@
+{{ define "content" }}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4"><i class="bi bi-graph-up"></i> Statistics</h1>
+    </div>
+</div>
+
+<!-- Time Range Selector -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label mb-2">Time Range:</label>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="timeRange" id="range7" value="7" checked>
+                            <label class="btn btn-outline-primary" for="range7">7 Days</label>
+
+                            <input type="radio" class="btn-check" name="timeRange" id="range30" value="30">
+                            <label class="btn btn-outline-primary" for="range30">30 Days</label>
+
+                            <input type="radio" class="btn-check" name="timeRange" id="range90" value="90">
+                            <label class="btn btn-outline-primary" for="range90">90 Days</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button class="btn btn-primary" onclick="refreshStats()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Trends -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar3"></i> Daily Build Trends</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="dailyTrendsChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version and Diff Packages Stats -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-layers"></i> Builds by Version</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="versionStatsChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Diff Packages Trend</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="diffPackagesTrendChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Statistics Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-table"></i> Version Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Version</th>
+                                <th>Total Requests</th>
+                                <th>Cache Hits</th>
+                                <th>Successful Builds</th>
+                                <th>Failed Builds</th>
+                                <th>Cache Hit Rate</th>
+                                <th>Success Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="versionStatsTable">
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+let dailyTrendsChart, versionStatsChart, diffPackagesTrendChart;
+
+function refreshStats() {
+    const days = document.querySelector('input[name="timeRange"]:checked').value;
+
+    // Fetch daily trends
+    fetch(`/api/v1/builds-per-day?days=${days}`)
+        .then(r => r.json())
+        .then(data => updateDailyTrendsChart(data));
+
+    // Fetch version stats
+    const weeks = Math.ceil(days / 7);
+    fetch(`/api/v1/builds-by-version?weeks=${weeks}`)
+        .then(r => r.json())
+        .then(data => {
+            updateVersionStatsChart(data);
+            updateVersionStatsTable(data);
+        });
+
+    // Fetch diff packages trend
+    fetch(`/api/v1/diff-packages-trend?days=${days}`)
+        .then(r => r.json())
+        .then(data => updateDiffPackagesTrendChart(data));
+}
+
+function updateDailyTrendsChart(data) {
+    const dates = Object.keys(data).sort();
+    const requests = dates.map(d => data[d].request || 0);
+    const cacheHits = dates.map(d => data[d].cache_hit || 0);
+    const completed = dates.map(d => data[d].build_completed || 0);
+    const failures = dates.map(d => data[d].failure || 0);
+
+    const ctx = document.getElementById('dailyTrendsChart');
+    if (dailyTrendsChart) dailyTrendsChart.destroy();
+
+    dailyTrendsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Total Requests',
+                    data: requests,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Cache Hits',
+                    data: cacheHits,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Successful Builds',
+                    data: completed,
+                    borderColor: 'rgb(75, 192, 75)',
+                    backgroundColor: 'rgba(75, 192, 75, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Failed Builds',
+                    data: failures,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index' }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+function updateVersionStatsChart(data) {
+    const versions = Object.keys(data);
+    const totals = versions.map(v =>
+        (data[v].request || 0) + (data[v].cache_hit || 0) + (data[v].build_completed || 0)
+    );
+
+    const ctx = document.getElementById('versionStatsChart');
+    if (versionStatsChart) versionStatsChart.destroy();
+
+    versionStatsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: versions,
+            datasets: [{
+                label: 'Total Requests',
+                data: totals,
+                backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                borderColor: 'rgb(75, 192, 192)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+function updateDiffPackagesTrendChart(data) {
+    const dates = data.map(d => d.date);
+    const enabled = data.map(d => d.diff_packages_true);
+    const disabled = data.map(d => d.diff_packages_false);
+
+    const ctx = document.getElementById('diffPackagesTrendChart');
+    if (diffPackagesTrendChart) diffPackagesTrendChart.destroy();
+
+    diffPackagesTrendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'With diff_packages',
+                    data: enabled,
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgb(75, 192, 192)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Without diff_packages',
+                    data: disabled,
+                    backgroundColor: 'rgba(201, 203, 207, 0.5)',
+                    borderColor: 'rgb(201, 203, 207)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' }
+            },
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            }
+        }
+    });
+}
+
+function updateVersionStatsTable(data) {
+    const tbody = document.getElementById('versionStatsTable');
+
+    if (Object.keys(data).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No data available</td></tr>';
+        return;
+    }
+
+    let html = '';
+    for (const version in data) {
+        const stats = data[version];
+        const requests = stats.request || 0;
+        const cacheHits = stats.cache_hit || 0;
+        const completed = stats.build_completed || 0;
+        const failures = stats.failure || 0;
+
+        const total = requests + cacheHits + completed;
+        const cacheRate = total > 0 ? ((cacheHits / total) * 100).toFixed(1) : 0;
+        const successRate = (completed + failures) > 0 ? ((completed / (completed + failures)) * 100).toFixed(1) : 0;
+
+        html += `
+            <tr>
+                <td><strong>${version}</strong></td>
+                <td>${total}</td>
+                <td>${cacheHits}</td>
+                <td><span class="badge bg-success">${completed}</span></td>
+                <td><span class="badge bg-danger">${failures}</span></td>
+                <td>
+                    <div class="progress" style="min-width: 100px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${cacheRate}%"
+                             aria-valuenow="${cacheRate}" aria-valuemin="0" aria-valuemax="100">
+                            ${cacheRate}%
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="progress" style="min-width: 100px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: ${successRate}%"
+                             aria-valuenow="${successRate}" aria-valuemin="0" aria-valuemax="100">
+                            ${successRate}%
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    tbody.innerHTML = html;
+}
+
+// Time range change handler
+document.querySelectorAll('input[name="timeRange"]').forEach(radio => {
+    radio.addEventListener('change', refreshStats);
+});
+
+// Initialize
+refreshStats();
+setInterval(refreshStats, 60000); // Refresh every minute
+</script>
+{{ end }}

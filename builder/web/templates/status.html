@@ -1,0 +1,299 @@
+{{ define "content" }}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4"><i class="bi bi-activity"></i> Build Status</h1>
+    </div>
+</div>
+
+<!-- Current Queue -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-task"></i> Build Queue</h5>
+                <button class="btn btn-sm btn-primary" onclick="refreshQueue()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="queueStatus" class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="queueList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Build Search -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-search"></i> Check Build Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-9">
+                        <input type="text" class="form-control" id="requestHashInput"
+                               placeholder="Enter request hash (e.g., abc123...)">
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary w-100" onclick="checkBuildStatus()">
+                            <i class="bi bi-search"></i> Check Status
+                        </button>
+                    </div>
+                </div>
+                <div id="buildStatusResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submit Build -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Submit New Build</h5>
+            </div>
+            <div class="card-body">
+                <form id="buildForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Version</label>
+                            <input type="text" class="form-control" name="version"
+                                   placeholder="23.05.0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Target</label>
+                            <input type="text" class="form-control" name="target"
+                                   placeholder="ath79/generic" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Profile</label>
+                            <input type="text" class="form-control" name="profile"
+                                   placeholder="tplink_archer-c7-v5" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Packages (space-separated)</label>
+                            <input type="text" class="form-control" name="packages"
+                                   placeholder="luci luci-ssl">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="diff_packages" id="diffPackages">
+                                <label class="form-check-label" for="diffPackages">
+                                    Enable diff_packages
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-play-circle"></i> Submit Build
+                    </button>
+                </form>
+                <div id="buildSubmitResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+function refreshQueue() {
+    document.getElementById('queueStatus').innerHTML = `
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    `;
+
+    fetch('/api/v1/stats')
+        .then(r => r.json())
+        .then(data => {
+            const queueLen = data.queue_length || 0;
+            if (queueLen === 0) {
+                document.getElementById('queueStatus').innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Queue is empty
+                    </div>
+                `;
+                document.getElementById('queueList').innerHTML = '';
+            } else {
+                document.getElementById('queueStatus').innerHTML = `
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> ${queueLen} build(s) in queue
+                    </div>
+                `;
+                // In a real implementation, fetch actual queue items
+                document.getElementById('queueList').innerHTML = '';
+            }
+        })
+        .catch(err => {
+            document.getElementById('queueStatus').innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-x-circle"></i> Failed to fetch queue status
+                </div>
+            `;
+        });
+}
+
+function checkBuildStatus() {
+    const hash = document.getElementById('requestHashInput').value.trim();
+    if (!hash) return;
+
+    document.getElementById('buildStatusResult').innerHTML = `
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    `;
+
+    fetch(`/api/v1/build/${hash}`)
+        .then(r => r.json())
+        .then(data => {
+            let statusBadge = '';
+            let statusClass = '';
+
+            switch(data.status) {
+                case 'pending':
+                    statusBadge = '<span class="badge bg-warning">Pending</span>';
+                    statusClass = 'warning';
+                    break;
+                case 'building':
+                    statusBadge = '<span class="badge bg-info">Building</span>';
+                    statusClass = 'info';
+                    break;
+                case 'completed':
+                    statusBadge = '<span class="badge bg-success">Completed</span>';
+                    statusClass = 'success';
+                    break;
+                case 'failed':
+                    statusBadge = '<span class="badge bg-danger">Failed</span>';
+                    statusClass = 'danger';
+                    break;
+            }
+
+            let html = `
+                <div class="alert alert-${statusClass}">
+                    <h5>${statusBadge} Build Status</h5>
+                    <dl class="row mb-0 mt-3">
+                        <dt class="col-sm-3">Request Hash:</dt>
+                        <dd class="col-sm-9"><code>${data.request_hash}</code></dd>
+
+                        <dt class="col-sm-3">Status:</dt>
+                        <dd class="col-sm-9">${statusBadge}</dd>
+            `;
+
+            if (data.queue_position) {
+                html += `
+                        <dt class="col-sm-3">Queue Position:</dt>
+                        <dd class="col-sm-9">#${data.queue_position}</dd>
+                `;
+            }
+
+            if (data.images && data.images.length > 0) {
+                html += `
+                        <dt class="col-sm-3">Images:</dt>
+                        <dd class="col-sm-9">
+                            <ul class="mb-0">
+                                ${data.images.map(img => `<li>${img}</li>`).join('')}
+                            </ul>
+                        </dd>
+                `;
+            }
+
+            if (data.error_message) {
+                html += `
+                        <dt class="col-sm-3">Error:</dt>
+                        <dd class="col-sm-9"><code>${data.error_message}</code></dd>
+                `;
+            }
+
+            html += `
+                    </dl>
+                </div>
+            `;
+
+            document.getElementById('buildStatusResult').innerHTML = html;
+        })
+        .catch(err => {
+            document.getElementById('buildStatusResult').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Build not found or error occurred
+                </div>
+            `;
+        });
+}
+
+document.getElementById('buildForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const packages = formData.get('packages').trim().split(/\s+/).filter(p => p);
+
+    const buildRequest = {
+        distro: 'openwrt',
+        version: formData.get('version'),
+        target: formData.get('target'),
+        profile: formData.get('profile'),
+        packages: packages,
+        diff_packages: formData.get('diff_packages') === 'on'
+    };
+
+    document.getElementById('buildSubmitResult').innerHTML = `
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Submitting...</span>
+        </div>
+    `;
+
+    fetch('/api/v1/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildRequest)
+    })
+    .then(r => r.json())
+    .then(data => {
+        const html = `
+            <div class="alert alert-success">
+                <h5><i class="bi bi-check-circle"></i> Build Submitted</h5>
+                <dl class="row mb-0 mt-3">
+                    <dt class="col-sm-3">Request Hash:</dt>
+                    <dd class="col-sm-9"><code>${data.request_hash}</code></dd>
+
+                    <dt class="col-sm-3">Status:</dt>
+                    <dd class="col-sm-9"><span class="badge bg-warning">${data.status}</span></dd>
+
+                    <dt class="col-sm-3">Queue Position:</dt>
+                    <dd class="col-sm-9">#${data.queue_position || 'N/A'}</dd>
+                </dl>
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-primary" onclick="document.getElementById('requestHashInput').value='${data.request_hash}'; checkBuildStatus();">
+                        <i class="bi bi-eye"></i> Check Status
+                    </button>
+                </div>
+            </div>
+        `;
+        document.getElementById('buildSubmitResult').innerHTML = html;
+        e.target.reset();
+    })
+    .catch(err => {
+        document.getElementById('buildSubmitResult').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i> Failed to submit build
+            </div>
+        `;
+    });
+});
+
+// Initialize
+refreshQueue();
+setInterval(refreshQueue, 10000); // Refresh every 10s
+</script>
+{{ end }}
