@@ -224,7 +224,7 @@ def api_v1_build_post(
 
     if build_request.client:
         client = build_request.client
-    elif user_agent.startswith("auc"):
+    elif user_agent and user_agent.startswith("auc"):
         client = user_agent.replace(" (", "/").replace(")", "")
     else:
         client = "unknown/0"

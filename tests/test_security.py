@@ -194,3 +194,21 @@ def test_client_field_accepts_none():
         profile="testprofile",
     )
     assert req.client is None
+
+
+# --- Fix #7: user_agent None handling ---
+
+
+def test_api_build_no_user_agent(client):
+    """Build without User-Agent header must not crash."""
+    response = client.post(
+        "/api/v1/build",
+        json={
+            "version": "1.2.3",
+            "target": "testtarget/testsubtarget",
+            "profile": "testprofile",
+        },
+        headers={"User-Agent": ""},
+    )
+    # Should not return 500 (AttributeError on None)
+    assert response.status_code in (200, 202)
