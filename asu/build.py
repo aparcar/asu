@@ -36,6 +36,8 @@ from asu.util import (
 
 log = logging.getLogger("rq.worker")
 
+IMAGE_NAME_RE = re.compile(r"^[\w.+-]+$")
+
 
 def is_repo_allowed(repo_url: str, allow_list: list[str]) -> bool:
     """Check if a repository URL is allowed by the allow list.
@@ -351,6 +353,11 @@ def _build(build_request: BuildRequest, job=None):
             ),
         )
     )
+
+    # Validate image names to prevent shell injection in signing container
+    for image_name in images:
+        if not IMAGE_NAME_RE.match(image_name):
+            report_error(job, f"Invalid image name: {image_name}")
 
     log.info(f"Signing images: {images}")
 
