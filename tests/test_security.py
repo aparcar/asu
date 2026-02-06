@@ -151,3 +151,46 @@ def test_image_name_regex_rejects_shell_injection():
     assert not IMAGE_NAME_RE.match("`whoami`")
     assert not IMAGE_NAME_RE.match("file name with spaces")
     assert not IMAGE_NAME_RE.match("../../../etc/passwd")
+
+
+# --- Fix #6: Client field validation ---
+
+
+def test_client_field_rejects_special_chars():
+    """Client field with shell metacharacters must be rejected."""
+    with pytest.raises(Exception):
+        BuildRequest(
+            version="1.2.3",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            client="evil;rm -rf /",
+        )
+
+
+def test_client_field_rejects_newlines():
+    with pytest.raises(Exception):
+        BuildRequest(
+            version="1.2.3",
+            target="testtarget/testsubtarget",
+            profile="testprofile",
+            client="evil\nclient",
+        )
+
+
+def test_client_field_accepts_valid():
+    req = BuildRequest(
+        version="1.2.3",
+        target="testtarget/testsubtarget",
+        profile="testprofile",
+        client="luci/git-22.073.39928-701ea94",
+    )
+    assert req.client == "luci/git-22.073.39928-701ea94"
+
+
+def test_client_field_accepts_none():
+    req = BuildRequest(
+        version="1.2.3",
+        target="testtarget/testsubtarget",
+        profile="testprofile",
+    )
+    assert req.client is None

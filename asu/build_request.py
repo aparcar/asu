@@ -9,6 +9,7 @@ TARGET_PATTERN = r"^[\w]*/[\w]*$"
 PKG_VERSION_PATTERN = r"^[\w+.,~-]*$"
 REPO_NAME_PATTERN = r"^[\w.-]+$"
 REPO_URL_PATTERN = r"^https?://\S+$"
+CLIENT_PATTERN = r"^[\w.,:/ -]*$"
 
 
 class BuildRequest(BaseModel):
@@ -158,6 +159,7 @@ class BuildRequest(BaseModel):
     client: Annotated[
         str | None,
         Field(
+            pattern=CLIENT_PATTERN,
             examples=["luci/git-22.073.39928-701ea94"],
             description="""
                 Client name and version that requests the image,
