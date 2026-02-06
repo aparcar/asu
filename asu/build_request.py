@@ -7,6 +7,8 @@ from asu.config import settings
 STRING_PATTERN = r"^[\w.,-]*$"
 TARGET_PATTERN = r"^[\w]*/[\w]*$"
 PKG_VERSION_PATTERN = r"^[\w+.,~-]*$"
+REPO_NAME_PATTERN = r"^[\w.-]+$"
+REPO_URL_PATTERN = r"^https?://\S+$"
 
 
 class BuildRequest(BaseModel):
@@ -135,7 +137,10 @@ class BuildRequest(BaseModel):
         ),
     ] = None
     repositories: Annotated[
-        dict[str, str],
+        dict[
+            Annotated[str, Field(pattern=REPO_NAME_PATTERN)],
+            Annotated[str, Field(pattern=REPO_URL_PATTERN)],
+        ],
         Field(
             description="""
                 Additional repositories for user packages.
