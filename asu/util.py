@@ -319,7 +319,7 @@ def run_cmd(
                 member.uid = uuid
                 member.gid = ugid
                 member.mode = 0o755 if member.isdir() else 0o644
-            tar_file.extractall(copy[1])
+            tar_file.extractall(copy[1], filter="data")
 
     return returncode, stdout, stderr
 
