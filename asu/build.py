@@ -6,6 +6,7 @@ from os import getenv
 from pathlib import Path
 from typing import Union
 from time import perf_counter
+from urllib.parse import urlparse
 
 from rq import get_current_job
 from rq.utils import parse_timeout
@@ -34,6 +35,26 @@ from asu.util import (
 )
 
 log = logging.getLogger("rq.worker")
+
+
+def is_repo_allowed(repo_url: str, allow_list: list[str]) -> bool:
+    """Check if a repository URL is allowed by the allow list.
+
+    Uses proper URL parsing to prevent subdomain and userinfo bypasses
+    that affect naive prefix matching.
+    """
+    if not allow_list:
+        return False
+    parsed = urlparse(repo_url)
+    for allowed in allow_list:
+        allowed_parsed = urlparse(allowed)
+        if (
+            parsed.scheme == allowed_parsed.scheme
+            and parsed.hostname == allowed_parsed.hostname
+            and parsed.path.startswith(allowed_parsed.path.rstrip("/") + "/")
+        ):
+            return True
+    return False
 
 
 def _build(build_request: BuildRequest, job=None):
@@ -135,7 +156,7 @@ def _build(build_request: BuildRequest, job=None):
         log.debug("Found extra repos")
         repositories = ""
         for name, repo in build_request.repositories.items():
-            if repo.startswith(tuple(settings.repository_allow_list)):
+            if is_repo_allowed(repo, settings.repository_allow_list):
                 repositories += f"src/gz {name} {repo}\n"
             else:
                 report_error(job, f"Repository {repo} not allowed")

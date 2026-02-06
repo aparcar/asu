@@ -5,6 +5,7 @@ from pathlib import Path
 from podman import PodmanClient
 
 import asu.util
+from asu.build import is_repo_allowed
 from asu.build_request import BuildRequest
 from asu.util import (
     check_manifest,
@@ -363,6 +364,43 @@ def test_parse_manifest_opkg():
         "test3": "3.0",
         "test4": "3.0",
     }
+
+
+def test_is_repo_allowed_empty_list():
+    assert is_repo_allowed("https://example.com/repo", []) is False
+
+
+def test_is_repo_allowed_valid():
+    allow = ["https://downloads.openwrt.org"]
+    assert is_repo_allowed("https://downloads.openwrt.org/releases/23.05", allow)
+
+
+def test_is_repo_allowed_subdomain_bypass():
+    """Attacker registers downloads.openwrt.org.evil.com"""
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed(
+        "https://downloads.openwrt.org.evil.com/packages", allow
+    )
+
+
+def test_is_repo_allowed_userinfo_bypass():
+    """Attacker uses URL userinfo to redirect"""
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed(
+        "https://downloads.openwrt.org@evil.com/packages", allow
+    )
+
+
+def test_is_repo_allowed_scheme_mismatch():
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed("http://downloads.openwrt.org/releases", allow)
+
+
+def test_is_repo_allowed_exact_host_no_path():
+    """URL must have a path under the allowed prefix, not just the host"""
+    allow = ["https://downloads.openwrt.org/releases"]
+    assert not is_repo_allowed("https://downloads.openwrt.org/snapshots", allow)
+    assert is_repo_allowed("https://downloads.openwrt.org/releases/23.05", allow)
 
 
 def test_parse_manifest_apk():
