@@ -396,6 +396,9 @@ def _build(build_request: BuildRequest, job=None):
                 "IMAGES_TO_SIGN": " ".join(images),
                 "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/builder/staging_dir/host/bin",
             },
+            cap_drop=["all"],
+            no_new_privileges=True,
+            privileged=False,
             auto_remove=True,
         )
         returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
