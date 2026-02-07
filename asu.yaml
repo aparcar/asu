@@ -1,0 +1,266 @@
+# OpenWrt Attended Sysupgrade Server — branch & package-change definitions
+#
+# This file is auto-reloaded when modified — no server restart required.
+#
+# Top-level sections:
+#   branches          — release branch definitions
+#   revision_changes  — revision-based rename/add/delete (served to clients)
+#   version_changes   — version/target/profile-specific build-time mutations
+#   language_packs    — prefix-based language pack renames
+
+# Branch definitions.
+#
+# Each key is the branch name (e.g. "SNAPSHOT", "24.10").
+# Non-SNAPSHOT branches default to:
+#   path: "releases/{version}"
+#   enabled: true
+#   snapshot: false
+#
+# IMPORTANT: Quote branch names that look like numbers (e.g. "24.10")
+# to prevent YAML from interpreting them as floats.
+branches:
+  SNAPSHOT:
+    path: snapshots
+    enabled: true
+    snapshot: true
+
+  "25.12":
+    branch_off_rev: 32295
+
+  "24.10":
+    branch_off_rev: 27990
+
+  "23.05":
+    branch_off_rev: 23069
+
+  "22.03":
+    branch_off_rev: 19160
+
+  "21.02":
+    branch_off_rev: 15812
+
+# Revision-based changes: used by branch configs and served to clients.
+#
+# Adding a new entry requires determining the revision at which the package
+# appears, is removed, or has been renamed/replaced.  To find the revision:
+#
+# 1) Look up the date of the commit for the package change.
+# 2) Use 'scripts/getver.sh yyyy-mm-dd' in buildroot to get the revision.
+#    See https://github.com/openwrt/openwrt/commit/e56845fae3c0
+#
+# Interpretation:
+#   rename/replace = both 'source' and 'target' specified
+#   added          = only 'source' specified
+#   deleted        = only 'target' specified
+#   mandatory      = package must be added or deleted (default package list changed)
+revision_changes:
+  - source: firewall
+    target: firewall4
+    revision: 18611
+  - source: kmod-nft-nat6
+    revision: 20282
+    mandatory: true
+  - source: libustream-wolfssl
+    target: libustream-mbedtls
+    revision: 21994
+  - source: px5g-wolfssl
+    target: px5g-mbedtls
+    revision: 21994
+  - source: wpad-basic-wolfssl
+    target: wpad-basic-mbedtls
+    revision: 21994
+  - source: luci-app-diag-core
+    revision: 25984
+    mandatory: true
+  - source: auc
+    target: owut
+    revision: 26792
+  - source: luci-app-opkg
+    target: luci-app-package-manager
+    revision: 27897
+  - source: opkg
+    target: apk-mbedtls
+    revision: 28056
+
+# Version/target/profile-specific build-time changes.
+#
+# Each entry matches builds whose version starts with the given version
+# prefix.  Rules within an entry are applied in order.
+#
+# Rule fields:
+#   target    — match a specific target (e.g. "mediatek/mt7622")
+#   targets   — match any of these targets
+#   profiles  — list of {names: [...], add: [...]} profile-scoped additions
+#   add       — packages to add (if missing) when target/targets match
+#   remove    — packages to remove (if present)
+#   replace   — {old: new} package replacements
+version_changes:
+  - version: "23.05"
+    rules:
+      - target: "mediatek/mt7622"
+        add: ["kmod-mt7622-firmware"]
+      - target: "ath79/generic"
+        profiles:
+          - names:
+              - buffalo_wzr-hp-g300nh-s
+              - dlink_dir-825-b1
+              - netgear_wndr3700
+              - netgear_wndr3700-v2
+              - netgear_wndr3800
+              - netgear_wndr3800ch
+              - netgear_wndrmac-v1
+              - netgear_wndrmac-v2
+              - trendnet_tew-673gru
+            add: ["kmod-switch-rtl8366s"]
+          - names:
+              - buffalo_wzr-hp-g300nh-rb
+            add: ["kmod-switch-rtl8366rb"]
+
+  - version: "24.10"
+    rules:
+      - replace:
+          auc: owut
+      - profiles:
+          - names:
+              - tplink_archer-c6-v2
+            add: ["ipq-wifi-tplink_archer-c6-v2"]
+      - targets:
+          - "mediatek/filogic"
+          - "mediatek/mt7622"
+          - "mediatek/mt7623"
+        add: ["fitblk"]
+
+  - version: "25.12"
+    rules:
+      - target: "kirkwood/generic"
+        profiles:
+          - names:
+              - checkpoint_l-50
+              - endian_4i-edge-200
+              - linksys_e4200-v2
+              - linksys_ea3500
+              - linksys_ea4500
+            add: ["kmod-dsa-mv88e6xxx"]
+      - target: "mvebu/cortexa9"
+        profiles:
+          - names:
+              - cznic_turris-omnia
+              - fortinet_fg-30e
+              - fortinet_fwf-30e
+              - fortinet_fg-50e
+              - fortinet_fg-51e
+              - fortinet_fg-52e
+              - fortinet_fwf-50e-2r
+              - fortinet_fwf-51e
+              - iij_sa-w2
+              - linksys_wrt1200ac
+              - linksys_wrt1900acs
+              - linksys_wrt1900ac-v1
+              - linksys_wrt1900ac-v2
+              - linksys_wrt3200acm
+              - linksys_wrt32x
+              - marvell_a370-rd
+            add: ["kmod-dsa-mv88e6xxx"]
+      - target: "mvebu/cortexa53"
+        profiles:
+          - names:
+              - glinet_gl-mv1000
+              - globalscale_espressobin
+              - globalscale_espressobin-emmc
+              - globalscale_espressobin-ultra
+              - globalscale_espressobin-v7
+              - globalscale_espressobin-v7-emmc
+              - methode_udpu
+            add: ["kmod-dsa-mv88e6xxx"]
+      - target: "mvebu/cortexa72"
+        profiles:
+          - names:
+              - checkpoint_v-80
+              - checkpoint_v-81
+              - globalscale_mochabin
+              - mikrotik_rb5009
+              - solidrun_clearfog-pro
+            add: ["kmod-dsa-mv88e6xxx"]
+      - target: "lantiq/xrx200"
+        profiles:
+          - names:
+              - arcadyan_arv7519rw22
+              - arcadyan_vgv7510kw22-brn
+              - arcadyan_vgv7510kw22-nor
+              - avm_fritz7412
+              - avm_fritz7430
+              - buffalo_wbmr-300hpd
+            add:
+              - xrx200-rev1.1-phy22f-firmware
+              - xrx200-rev1.2-phy22f-firmware
+          - names:
+              - tplink_vr200
+              - tplink_vr200v
+              - arcadyan_vgv7519-brn
+              - arcadyan_vgv7519-nor
+              - arcadyan_vrv9510kwac23
+              - avm_fritz3370-rev2-hynix
+              - avm_fritz3370-rev2-micron
+              - avm_fritz3390
+              - avm_fritz3490
+              - avm_fritz3490-micron
+              - avm_fritz5490
+              - avm_fritz5490-micron
+              - avm_fritz7360sl
+              - avm_fritz7360-v2
+              - avm_fritz7362sl
+              - avm_fritz7490
+              - avm_fritz7490-micron
+              - bt_homehub-v5a
+              - lantiq_easy80920-nand
+              - lantiq_easy80920-nor
+              - zyxel_p-2812hnu-f1
+              - zyxel_p-2812hnu-f3
+            add:
+              - xrx200-rev1.1-phy11g-firmware
+              - xrx200-rev1.2-phy11g-firmware
+      - target: "lantiq/xrx200_legacy"
+        profiles:
+          - names:
+              - alphanetworks_asl56026
+              - netgear_dm200
+            add:
+              - xrx200-rev1.1-phy22f-firmware
+              - xrx200-rev1.2-phy22f-firmware
+          - names:
+              - tplink_tdw8970
+              - tplink_tdw8980
+              - arcadyan_vg3503j
+            add:
+              - xrx200-rev1.1-phy11g-firmware
+              - xrx200-rev1.2-phy11g-firmware
+      - target: "bcm53xx/generic"
+        profiles:
+          - names:
+              - meraki_mr32
+            add: ["kmod-hci-uart"]
+      - target: "ipq40xx/generic"
+        profiles:
+          - names:
+              - linksys_whw03
+              - linksys_whw03v2
+            add: ["kmod-hci-uart"]
+      - target: "qualcommax/ipq807x"
+        profiles:
+          - names:
+              - linksys_mx4200v1
+              - linksys_mx8500
+              - zyxel_nbg7815
+            add: ["kmod-hci-uart"]
+
+  - version: SNAPSHOT
+    comment: "Change 'SNAPSHOT' to 26.x when needed."
+    rules:
+      - remove: ["kmod-nf-conntrack6"]
+
+# Language pack prefix replacements.
+# Applied to all versions >= min_version (including snapshots).
+language_packs:
+  - min_version: "24.10"
+    replacements:
+      "luci-i18n-opkg-": "luci-i18n-package-manager-"

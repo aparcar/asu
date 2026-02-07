@@ -12,6 +12,9 @@ COPY pyproject.toml README.md ./
 # Using --no-dev to exclude optional dev dependencies
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 
+# Copy configuration and schema files
+COPY asu.yaml asu_schema.json ./
+
 # Copy application code
 COPY ./asu/ ./asu/
 

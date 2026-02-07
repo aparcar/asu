@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from asu import __version__
+from asu.branches import get_branches
 from asu.config import settings
 from asu.routers import api, stats
 from asu.util import (
@@ -67,7 +68,7 @@ def index(request: Request):
         name="overview.html",
         context=dict(
             versions=app.versions,
-            branches=reversed(settings.branches),
+            branches=reversed(get_branches()),
             defaults=settings.allow_defaults,
             version=__version__,
             server_stats=settings.server_stats,
@@ -132,12 +133,17 @@ def json_v1_latest():
 
 
 def generate_branches():
+    from asu.package_changes import get_revision_changes
+
     reload_versions(app)  # Do a reload in case .versions.json has updated.
-    branches = dict(**settings.branches)
+    branches = {k: dict(v) for k, v in get_branches().items()}
 
     for branch in branches:
         branches[branch]["versions"] = []
         branches[branch]["name"] = branch
+        branches[branch]["package_changes"] = get_revision_changes(
+            branches[branch].get("branch_off_rev")
+        )
 
     for version in app.versions:
         branch_name = get_branch(version)["name"]

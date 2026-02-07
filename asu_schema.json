@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ASU OpenWrt Configuration",
+  "description": "Schema for openwrt.yaml — defines branches, package changes, and language pack rules for the ASU server.",
+  "type": "object",
+  "required": ["branches", "revision_changes", "version_changes", "language_packs"],
+  "additionalProperties": false,
+  "properties": {
+    "branches": {
+      "description": "Release branch definitions. Keys are branch names (e.g. 'SNAPSHOT', '24.10').",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "URL path template for this branch. Use {version} as placeholder. Defaults to 'releases/{version}' for non-snapshot branches."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this branch is active. Defaults to true."
+          },
+          "snapshot": {
+            "type": "boolean",
+            "description": "Whether this is a snapshot (rolling) branch. Defaults to false."
+          },
+          "branch_off_rev": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "OpenWrt revision at which this branch was forked. Used to determine applicable package changes."
+          }
+        }
+      }
+    },
+    "revision_changes": {
+      "description": "Revision-based package changes served to clients for branch-level migration guidance.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["revision"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Original package name (for renames/deletes)."
+          },
+          "target": {
+            "type": "string",
+            "description": "Replacement package name (for renames/adds)."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "OpenWrt revision number at which this change takes effect."
+          },
+          "mandatory": {
+            "type": "boolean",
+            "description": "If true, the package must be added or deleted (default package list changed)."
+          }
+        },
+        "anyOf": [
+          { "required": ["source"] },
+          { "required": ["target"] }
+        ]
+      }
+    },
+    "version_changes": {
+      "description": "Version/target/profile-specific build-time package mutations.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version", "rules"],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Version prefix to match (e.g. '23.05') or exact value like 'SNAPSHOT'."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional comment for this version change group."
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "description": "Single target to match (e.g. 'mediatek/mt7622')."
+                },
+                "targets": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Multiple targets to match (any of)."
+                },
+                "profiles": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["names", "add"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "names": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "minItems": 1,
+                        "description": "Profile names to match."
+                      },
+                      "add": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Packages to add if missing."
+                      }
+                    }
+                  },
+                  "description": "Profile-scoped package additions."
+                },
+                "add": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Packages to add if missing (when target/targets match)."
+                },
+                "remove": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Packages to remove if present."
+                },
+                "replace": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "description": "Package replacements as {old_name: new_name}."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "language_packs": {
+      "description": "Prefix-based language pack renames applied to all versions >= min_version.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["min_version", "replacements"],
+        "additionalProperties": false,
+        "properties": {
+          "min_version": {
+            "type": "string",
+            "description": "Minimum version (inclusive). Applies to all versions >= this, including snapshots."
+          },
+          "replacements": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Prefix replacements as {old_prefix: new_prefix}."
+          }
+        }
+      }
+    }
+  }
+}

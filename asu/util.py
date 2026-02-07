@@ -92,7 +92,12 @@ def get_queue() -> Queue:
 
 
 def get_branch(version_or_branch: str) -> dict[str, str]:
-    if version_or_branch not in settings.branches:
+    from asu.branches import get_branches
+    from asu.package_changes import get_revision_changes
+
+    branches = get_branches()
+
+    if version_or_branch not in branches:
         if version_or_branch.endswith("-SNAPSHOT"):
             # e.g. 21.02-snapshot
             branch_name = version_or_branch.rsplit("-", maxsplit=1)[0]
@@ -102,7 +107,9 @@ def get_branch(version_or_branch: str) -> dict[str, str]:
     else:
         branch_name = version_or_branch
 
-    return {**settings.branches.get(branch_name, {}), "name": branch_name}
+    branch = {**branches.get(branch_name, {}), "name": branch_name}
+    branch["package_changes"] = get_revision_changes(branch.get("branch_off_rev"))
+    return branch
 
 
 def get_str_hash(string: str) -> str:
@@ -557,7 +564,9 @@ def reload_versions(app: FastAPI) -> bool:
     """
 
     def in_supported_branch(version: str) -> bool:
-        for branch_name, branch in settings.branches.items():
+        from asu.branches import get_branches
+
+        for branch_name, branch in get_branches().items():
             if branch["enabled"] and version.startswith(branch_name):
                 return True
         return False
@@ -587,6 +596,8 @@ def reload_versions(app: FastAPI) -> bool:
         versions_upstream["oldstable_version"],
     )
 
+    from asu.branches import get_branches
+
     app.versions = []
     add_versions(
         app.versions,
@@ -595,7 +606,7 @@ def reload_versions(app: FastAPI) -> bool:
         "SNAPSHOT",
         *[
             f"{branch_name}-SNAPSHOT"
-            for branch_name in settings.branches
+            for branch_name in get_branches()
             if branch_name != "SNAPSHOT"
         ],
     )

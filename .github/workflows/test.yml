@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      - name: Validate YAML config files
+        run: uv run python misc/validate_yaml.py
+
       - name: Lint with ruff
         run: uv run ruff check .
 

@@ -18,6 +18,8 @@ dependencies = [
     "fastapi-cache2>=0.2.2",
     "httpx>=0.28.1",
     "podman-compose>=1.5.0",
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
 ]
 
 [project.optional-dependencies]

@@ -93,7 +93,9 @@ def validate_request(
 
     branch = get_branch(build_request.version)["name"]
 
-    if branch not in settings.branches:
+    from asu.branches import get_branches
+
+    if branch not in get_branches():
         return validation_failure(f"Unsupported branch: {build_request.version}")
 
     if build_request.version not in app.versions:

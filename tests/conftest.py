@@ -7,6 +7,7 @@ from fakeredis import FakeStrictRedis
 from rq import Queue
 from fastapi.testclient import TestClient
 
+from asu.branches import set_branch_override, clear_branch_overrides
 from asu.config import settings
 
 
@@ -102,11 +103,14 @@ def app(redis_server, test_path, monkeypatch, upstream):
     settings.upstream_url = "http://localhost:8123"
     settings.server_stats = "stats"
     for branch in "1.2", "19.07", "21.02":
-        if branch not in settings.branches:
-            settings.branches[branch] = {
+        set_branch_override(
+            branch,
+            {
                 "path": "releases/{version}",
                 "enabled": True,
-            }
+                "snapshot": False,
+            },
+        )
 
     monkeypatch.setattr("asu.util.get_queue", mocked_redis_queue)
     monkeypatch.setattr("asu.routers.api.get_queue", mocked_redis_queue)
@@ -115,6 +119,8 @@ def app(redis_server, test_path, monkeypatch, upstream):
     from asu.main import app as real_app
 
     yield real_app
+
+    clear_branch_overrides()
 
 
 @pytest.fixture
