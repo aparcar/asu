@@ -53,6 +53,7 @@ jobs:
 
       - name: Test with pytest
         run: |
+          podman network create asu-build
           podman system service --time=0 "unix://$(pwd)/podman.sock" &
           uv run coverage run -m pytest -vv --runslow
           uv run coverage xml

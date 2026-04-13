@@ -38,10 +38,8 @@ jobs:
 
       - name: Start the containers
         run: |
-          export CONTAINER_SOCKET_PATH="/tmp/podman.sock"
-          podman system service --time=0 "unix://$CONTAINER_SOCKET_PATH" &
-          echo "PUBLIC_PATH=$(pwd)/public" > .env
-          echo "CONTAINER_SOCKET_PATH=$CONTAINER_SOCKET_PATH" >> .env
+          podman network create asu-build
+          podman system service --time=0 "unix://$(pwd)/podman.sock" &
           uv run podman-compose up -d
 
       - name: Let the containers start
