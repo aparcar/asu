@@ -51,6 +51,7 @@ def test_api_build_inputs(client):
     assert request["client"] is None
     assert request["rootfs_size_mb"] is None
     assert request["diff_packages"] is False
+    assert request["repositories_mode"] == "replace"
 
 
 def test_api_build_version_code(client):
@@ -213,8 +214,8 @@ def test_api_build_request_hash(client):
         profile="testprofile",
     )
 
-    case12hash = "8d8e0aa2fd95bb75dba4aff4279dd6f976a40ad17300927d54b8a9a9b0576306"
-    case34hash = "6b1645013216da39ee09deae75b87b0636f3c50648b037750b0a80448ce5c7ca"
+    case12hash = "1c4a79c6b711a576996cf9a5e7046a4581008c4466574096266f0e6ea4208fbc"
+    case34hash = "c5a849e05b60611b465042594fc3489a44f7695c3d09e36433a577ee772ad7b7"
 
     # Case 1 - diff_packages=True, first package ordering
     json["diff_packages"] = True
@@ -435,21 +436,23 @@ def test_api_build_empty_packages_list(client):
 
 
 @pytest.mark.slow
-def test_api_build_conflicting_packages(client):
-    """Use real build to get proper context for conflicts."""
+def test_api_build_missing_package(app):
+    """Use real build to get proper error for missing packages."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
-            version="23.05.5",
+            version="25.12.2",
             target="ath79/generic",
             profile="8dev_carambola2",
-            packages=["dnsmasq", "dnsmasq-full"],
+            packages=["this-package-does-not-exist"],
         ),
     )
 
     assert response.status_code == 500
     data = response.json()
-    assert data["detail"] == "Error: Impossible package selection"
+    assert "this-package-does-not-exist" in data["detail"]
 
 
 def test_api_build_without_packages_list(client):
@@ -497,12 +500,13 @@ def test_api_build_empty_request(client):
 
 @pytest.mark.slow
 def test_api_build_real_x86(app):
+    settings.upstream_url = "https://downloads.openwrt.org"
     client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
         ),
@@ -516,7 +520,7 @@ def test_api_build_real_x86(app):
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
             filesystem="ext4",
@@ -530,12 +534,13 @@ def test_api_build_real_x86(app):
 
 @pytest.mark.slow
 def test_api_build_real_ath79(app):
+    settings.upstream_url = "https://downloads.openwrt.org"
     client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="8dev,carambola2",  # Test unsanitized profile.
         ),
@@ -549,7 +554,7 @@ def test_api_build_real_ath79(app):
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="8dev_carambola2",
             filesystem="squashfs",
@@ -641,7 +646,7 @@ def test_api_build_bad_version(client):
     response = client.post(
         "/api/v1/build",
         json=dict(
-            version="19.07.2",
+            version="99.99.99",
             target="testtarget/testsubtarget",
             profile="testprofile",
             packages=["test1", "test2"],
@@ -649,7 +654,7 @@ def test_api_build_bad_version(client):
     )
     assert response.status_code == 400
     data = response.json()
-    assert data["detail"] == "Unsupported version: 19.07.2"
+    assert data["detail"] == "Unsupported branch: 99.99.99"
 
 
 def test_api_build_bad_profile(client):
@@ -719,7 +724,7 @@ def test_api_build_defaults_filled_allowed(app):
     data = response.json()
     assert (
         data["request_hash"]
-        == "9c8d0cd7d9ec208a233b954edb20c3c20b5c11103bb7f5f1ebface565f8c6720"
+        == "ba50558496f8fead41e8d5bc72afd1ad7d27bc053afb550a8bf6ee3bbcc64952"
     )
 
 
@@ -758,3 +763,129 @@ def test_api_stats(client):
     assert response.status_code == 200
     data = response.json()
     assert data["queue_length"] == 0
+
+
+@pytest.mark.slow
+def test_api_build_libremesh_apk(app):
+    """Build with LibreMesh apk repository (25.12.2, x86/64)."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    settings.repository_allow_list = ["https://raw.githubusercontent.com/libremesh/"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/build",
+        json=dict(
+            target="x86/64",
+            version="25.12.2",
+            profile="generic",
+            packages=["lime-system"],
+            repositories={
+                "libremesh": "https://raw.githubusercontent.com/libremesh/lime-feed/gh-pages/master/openwrt-25.12/x86_64/packages.adb",
+            },
+            repository_keys=[
+                "-----BEGIN PUBLIC KEY-----\n"
+                "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdFJZ2qVti49Ol8LJZYuxgOCLowBS\n"
+                "8bI86a7zqhSbs5yon3JON7Yee7CQOgqwPOX5eMALGOu8iFGAqIRx5YjfYA==\n"
+                "-----END PUBLIC KEY-----\n"
+            ],
+            repositories_mode="append",
+        ),
+    )
+
+    data = response.json()
+    assert response.status_code == 200, data.get("stderr", data.get("detail", ""))[
+        :2000
+    ]
+    assert "lime-system" in data["manifest"]
+
+
+@pytest.mark.slow
+def test_api_build_libremesh_opkg(app):
+    """Build with LibreMesh opkg repository (23.05.5, ath79)."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    settings.repository_allow_list = ["https://raw.githubusercontent.com/libremesh/"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/build",
+        json=dict(
+            target="ath79/generic",
+            version="23.05.5",
+            profile="8dev_carambola2",
+            packages=["lime-system"],
+            repositories={
+                "libremesh": "https://raw.githubusercontent.com/libremesh/lime-feed/gh-pages/2024.1",
+            },
+            repository_keys=[
+                "RWSnGzyChavSiyQ+vLk3x7F0NqcLa4kKyXCdriThMhO78ldHgxGljM/8",
+            ],
+            repositories_mode="append",
+        ),
+    )
+
+    data = response.json()
+    assert response.status_code == 200, data.get("stderr", data.get("detail", ""))[
+        :2000
+    ]
+    assert "lime-system" in data["manifest"]
+
+
+@pytest.mark.slow
+def test_api_build_freifunk_apk(app):
+    """Build with Freifunk Weimarnetz apk repository (25.12.2, ath79)."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    settings.repository_allow_list = ["https://buildbot.weimarnetz.de/"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/build",
+        json=dict(
+            target="ath79/generic",
+            version="25.12.2",
+            profile="8dev_carambola2",
+            packages=["weimarnetz-feed-apk"],
+            repositories={
+                "weimarnetz": "https://buildbot.weimarnetz.de/builds/brauhaus/packages/stable/25.12/ath79/generic/weimarnetz_packages/packages.adb",
+            },
+            repository_keys=[
+                "-----BEGIN PUBLIC KEY-----\n"
+                "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzZWFJBl7JU/XlRXaU4duMoqnu/L1\n"
+                "aPZGMO349gtL2Wt3eo8fC2qcbnXV2FdcPXaySeY4RmbrlG1ehDonJfW7Jg==\n"
+                "-----END PUBLIC KEY-----\n"
+            ],
+            repositories_mode="append",
+        ),
+    )
+
+    data = response.json()
+    assert response.status_code == 200, data.get("stderr", data.get("detail", ""))[
+        :2000
+    ]
+    assert "weimarnetz-feed-apk" in data["manifest"]
+
+
+@pytest.mark.slow
+def test_api_build_freifunk_opkg(app):
+    """Build with Freifunk Weimarnetz opkg repository (24.10.6, ath79)."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    settings.repository_allow_list = ["https://buildbot.weimarnetz.de/"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/build",
+        json=dict(
+            target="ath79/generic",
+            version="24.10.6",
+            profile="8dev_carambola2",
+            packages=["weimarnetz-feed-opkg"],
+            repositories={
+                "weimarnetz": "https://buildbot.weimarnetz.de/builds/brauhaus/packages/stable/24.10/ath79/generic/weimarnetz_packages",
+            },
+            repository_keys=[
+                "RWRIR91gqalV7vnWiH8RjngeXUohKt0VMGPVHNYPVPX3Ala/k6tdjuWC",
+            ],
+            repositories_mode="append",
+        ),
+    )
+
+    data = response.json()
+    assert response.status_code == 200, data.get("stderr", data.get("detail", ""))[
+        :2000
+    ]
+    assert "weimarnetz-feed-opkg" in data["manifest"]

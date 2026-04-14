@@ -2,12 +2,16 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from podman import PodmanClient
 
 import asu.util
+from asu.repositories import is_repo_allowed
 from asu.build_request import BuildRequest
 from asu.util import (
     check_manifest,
+    check_package_errors,
     diff_packages,
     fingerprint_pubkey_usign,
     get_container_version_tag,
@@ -67,8 +71,21 @@ def test_get_request_hash():
 
     assert (
         get_request_hash(request)
-        == "99ff721439cd696f7da259541a07d7bfc7eb6c45a844db532e0384b464e23f46"
+        == "525e19496bd8d47b9b63aa5fb2b2f5da467558893d39a42eb32210007fd57800"
     )
+
+
+def test_get_request_hash_includes_repositories_mode():
+    base = dict(
+        version="1.2.3",
+        target="testtarget/testsubtarget",
+        profile="testprofile",
+        repositories={"custom": "https://example.com/repo"},
+    )
+    append_hash = get_request_hash(BuildRequest(**base, repositories_mode="append"))
+    replace_hash = get_request_hash(BuildRequest(**base, repositories_mode="replace"))
+
+    assert append_hash != replace_hash
 
 
 def test_diff_packages():
@@ -180,8 +197,8 @@ def test_get_packages_versions():
     assert packages == packages_without_abi
 
     # Old opkg-style Packages format, but with v1 index.json
-    asu.util.client_get = (
-        lambda url: ResponseJson1() if "json" in url else ResponseText()
+    asu.util.client_get = lambda url: (
+        ResponseJson1() if "json" in url else ResponseText()
     )
     index = parse_packages_file("httpx://fake_url")
     packages = index["packages"]
@@ -190,8 +207,8 @@ def test_get_packages_versions():
     assert packages == packages_without_abi
 
     # New apk-style without Packages, but old v1 index.json
-    asu.util.client_get = (
-        lambda url: ResponseJson1() if "json" in url else Response404()
+    asu.util.client_get = lambda url: (
+        ResponseJson1() if "json" in url else Response404()
     )
     index = parse_packages_file("httpx://fake_url")
     packages = index["packages"]
@@ -311,6 +328,24 @@ def test_check_manifest():
     )
 
 
+def test_check_package_errors():
+    assert check_package_errors("hello world") == "Impossible package selection"
+    assert (
+        check_package_errors(
+            " * opkg_install_cmd: Cannot install package OPKG-MISSING."
+        )
+        == "Impossible package selection: missing (OPKG-MISSING)"
+    )
+    assert (
+        check_package_errors(check_package_errors.__doc__)
+        == "Impossible package selection:"
+        " missing (APK-MISSING, OPKG-MISSING)"
+        " conflicts"
+        " (APK-CONFLICT-1, APK-CONFLICT-2, APK-CONFLICT-3, APK-CONFLICT-4,"
+        " OPKG-CONFLICT-1, OPKG-CONFLICT-2, OPKG-CONFLICT-3, OPKG-CONFLICT-4)"
+    )
+
+
 def test_get_podman():
     podman = get_podman()
     assert isinstance(podman, PodmanClient)
@@ -336,6 +371,39 @@ def test_run_cmd():
     assert "testtarget/testsubtarget" in stdout
 
 
+def test_run_cmd_rejects_tar_path_traversal(tmp_path, monkeypatch):
+    """Tar archives with path traversal members must be rejected (CVE-2007-4559).
+
+    The filter='data' argument to extractall() raises an error for entries
+    with absolute paths or parent directory references like '../../etc/passwd'.
+    """
+    import io
+    import tarfile
+    from unittest.mock import MagicMock
+
+    # Build a malicious tar archive with a path traversal entry
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        info = tarfile.TarInfo(name="../../etc/malicious")
+        info.size = 7
+        tar.addfile(info, io.BytesIO(b"pwned!\n"))
+    buf.seek(0)
+
+    # Mock a container that returns this malicious tar
+    mock_container = MagicMock()
+    mock_container.exec_run.return_value = (0, (b"ok", b""))
+    mock_container.get_archive.return_value = (iter([buf.getvalue()]), None)
+
+    dest = str(tmp_path / "output")
+    os.makedirs(dest)
+
+    with pytest.raises(Exception, match="is outside the destination"):
+        run_cmd(mock_container, ["echo"], copy=["/fake", dest])
+
+    # Verify the malicious file was NOT written
+    assert not (tmp_path / "etc" / "malicious").exists()
+
+
 def test_parse_manifest_opkg():
     manifest = parse_manifest("test - 1.0\ntest2 - 2.0\ntest3 - 3.0\ntest4 - 3.0\n")
 
@@ -345,6 +413,39 @@ def test_parse_manifest_opkg():
         "test3": "3.0",
         "test4": "3.0",
     }
+
+
+def test_is_repo_allowed_empty_list():
+    assert is_repo_allowed("https://example.com/repo", []) is False
+
+
+def test_is_repo_allowed_valid():
+    allow = ["https://downloads.openwrt.org"]
+    assert is_repo_allowed("https://downloads.openwrt.org/releases/23.05", allow)
+
+
+def test_is_repo_allowed_subdomain_bypass():
+    """Attacker registers downloads.openwrt.org.evil.com"""
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed("https://downloads.openwrt.org.evil.com/packages", allow)
+
+
+def test_is_repo_allowed_userinfo_bypass():
+    """Attacker uses URL userinfo to redirect"""
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed("https://downloads.openwrt.org@evil.com/packages", allow)
+
+
+def test_is_repo_allowed_scheme_mismatch():
+    allow = ["https://downloads.openwrt.org"]
+    assert not is_repo_allowed("http://downloads.openwrt.org/releases", allow)
+
+
+def test_is_repo_allowed_exact_host_no_path():
+    """URL must have a path under the allowed prefix, not just the host"""
+    allow = ["https://downloads.openwrt.org/releases"]
+    assert not is_repo_allowed("https://downloads.openwrt.org/snapshots", allow)
+    assert is_repo_allowed("https://downloads.openwrt.org/releases/23.05", allow)
 
 
 def test_parse_manifest_apk():

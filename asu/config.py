@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Union
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, TomlConfigSettingsSource
 
 # Adding a new entry to `package_changes_list` requires determining
 # the revision at which the package appears, is removed or has been
@@ -61,9 +61,20 @@ def release(branch_off_rev, enabled=True):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        toml_file="asu.toml",
+        extra="ignore",
+    )
 
-    public_path: Path = Path.cwd() / "public"
+    @classmethod
+    def settings_customise_sources(cls, settings_cls, **kwargs):
+        return (
+            kwargs["env_settings"],
+            TomlConfigSettingsSource(settings_cls),
+            kwargs["init_settings"],
+        )
+
+    public_path: Path = Path("/public")
     redis_url: str = "redis://localhost:6379"
     upstream_url: str = "https://downloads.openwrt.org"
     allow_defaults: bool = False
@@ -73,7 +84,6 @@ class Settings(BaseSettings):
     max_defaults_length: int = 20480
     repository_allow_list: list = []
     base_container: str = "ghcr.io/openwrt/imagebuilder"
-    container_socket_path: str = ""
     container_identity: str = ""
     branches: dict = {
         "SNAPSHOT": {
@@ -89,12 +99,19 @@ class Settings(BaseSettings):
         "22.03": release(19160),
         "21.02": release(15812, enabled=True),  # Enabled for now...
     }
+    store_backend: str = "local"  # "local" or "s3"
+    s3_endpoint: str = ""
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    s3_bucket: str = "asu-store"
+    s3_region: str = ""
+    s3_public_url: str = ""  # base URL for redirects, e.g. "https://cdn.example.com"
     server_stats: str = ""
     log_level: str = "INFO"
-    squid_cache: bool = False
-    build_ttl: str = "3h"
+    build_ttl: str = "7d"
+    build_ttl_unversioned: str = "24h"
     build_defaults_ttl: str = "30m"
-    build_failure_ttl: str = "10m"
+    build_failure_ttl: str = "1h"
     max_pending_jobs: int = 200
     job_timeout: str = "10m"
 

@@ -29,6 +29,13 @@ def apply_package_changes(build_request: BuildRequest):
             build_request.packages.append(package)
             log.debug(f"Added {package} to packages")
 
+    def _remove_if_present(package):
+        if package in build_request.packages:
+            build_request.packages.remove(package)
+            log.debug(f"Removed {package} from packages")
+            return True
+        return False
+
     # 23.05 specific changes
     if build_request.version.startswith("23.05"):
         # mediatek/mt7622 specific changes
@@ -55,8 +62,7 @@ def apply_package_changes(build_request: BuildRequest):
 
     if build_request.version.startswith("24.10"):
         # `auc` no longer exists here
-        if "auc" in build_request.packages:
-            build_request.packages.remove("auc")
+        if _remove_if_present("auc"):
             _add_if_missing("owut")
 
         if build_request.profile in {"tplink_archer-c6-v2"}:
@@ -124,8 +130,10 @@ def apply_package_changes(build_request: BuildRequest):
                 "solidrun_clearfog-pro",
             }:
                 _add_if_missing("kmod-dsa-mv88e6xxx")
+        # Changes for https://github.com/openwrt/openwrt/commit/62bf0287326dcfab4596d5f4cad77cd9e7f8f03b
         # Changes for https://github.com/openwrt/openwrt/commit/a18d95f35bd54ade908e8ec3158435859402552d
         elif build_request.target == "lantiq/xrx200":
+            _add_if_missing("kmod-dsa-gswip")
             if build_request.profile in {
                 "arcadyan_arv7519rw22",
                 "arcadyan_vgv7510kw22-brn",
@@ -162,8 +170,10 @@ def apply_package_changes(build_request: BuildRequest):
             }:
                 _add_if_missing("xrx200-rev1.1-phy11g-firmware")
                 _add_if_missing("xrx200-rev1.2-phy11g-firmware")
+        # Changes for https://github.com/openwrt/openwrt/commit/62bf0287326dcfab4596d5f4cad77cd9e7f8f03b
         # Changes for https://github.com/openwrt/openwrt/commit/a18d95f35bd54ade908e8ec3158435859402552d
         elif build_request.target == "lantiq/xrx200_legacy":
+            _add_if_missing("kmod-dsa-gswip")
             if build_request.profile in {
                 "alphanetworks_asl56026",
                 "netgear_dm200",
@@ -197,6 +207,10 @@ def apply_package_changes(build_request: BuildRequest):
             }:
                 _add_if_missing("kmod-hci-uart")
 
+    if build_request.version == "SNAPSHOT":  # Change "SNAPSHOT" to 26.x when needed.
+        # https://github.com/openwrt/openwrt/commit/5b61a50244ebc82096f5949de294ad69851e1fd6
+        _remove_if_present("kmod-nf-conntrack6")
+
     # TODO: if we ever fully implement 'packages_versions', this needs rework
     for version, packages in language_packs.items():
         if build_request.version >= version:  # Includes snapshots
@@ -205,3 +219,8 @@ def apply_package_changes(build_request: BuildRequest):
                     if package.startswith(old):
                         lang = package.replace(old, "")
                         build_request.packages[i] = f"{new}{lang}"
+
+    # Clean out all the no longer present -en translations
+    for package in list(build_request.packages):
+        if package.startswith("luci-i18n-") and package.endswith("-en"):
+            _remove_if_present(package)

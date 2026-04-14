@@ -4,9 +4,10 @@ import hashlib
 import json
 import logging
 import struct
+from datetime import datetime, UTC
 from os import getgid, getuid
 from pathlib import Path
-from re import match
+from re import match, findall, sub, DOTALL, MULTILINE
 from tarfile import TarFile
 from io import BytesIO
 from typing import Optional
@@ -179,6 +180,7 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 str(build_request.rootfs_size_mb),
                 str(build_request.repository_keys),
                 str(build_request.repositories),
+                build_request.repositories_mode,
             ]
         ),
     )
@@ -264,9 +266,16 @@ def get_container_version_tag(input_version: str) -> str:
     return version
 
 
+def _find_podman_socket() -> str:
+    for path in ["./podman.sock", "/var/podman.sock"]:
+        if Path(path).exists():
+            return f"unix://{Path(path).resolve()}"
+    return "unix:///var/podman.sock"
+
+
 def get_podman() -> PodmanClient:
     return PodmanClient(
-        base_url=f"unix://{settings.container_socket_path}",
+        base_url=_find_podman_socket(),
         identity=settings.container_identity,
     )
 
@@ -316,7 +325,7 @@ def run_cmd(
                 member.uid = uuid
                 member.gid = ugid
                 member.mode = 0o755 if member.isdir() else 0o644
-            tar_file.extractall(copy[1])
+            tar_file.extractall(copy[1], filter="data")
 
     return returncode, stdout, stderr
 
@@ -366,6 +375,82 @@ def check_manifest(
                 f"Impossible package selection: {package} version not as requested: "
                 f"{version} vs. {manifest[package]}"
             )
+    return None
+
+
+def check_package_errors(stderr: str) -> str:
+    """
+    Note that this docstring is used as the test case, see tests/test_util.py
+
+    opkg error formats:
+
+    Case opkg-1
+        Collected errors:
+         * opkg_install_cmd: Cannot install package OPKG-MISSING.
+
+    Case opkg-2
+        Collected errors:
+         * check_conflicts_for: The following packages conflict with OPKG-CONFLICT-1:
+         * check_conflicts_for:         OPKG-CONFLICT-2 *
+         * opkg_install_cmd: Cannot install package OPKG-CONFLICT-1.
+
+    Case opkg-3
+        Collected errors:
+         * check_data_file_clashes: Package OPKG-CONFLICT-3 wants to install file /some/file
+                But that file is already provided by package  * OPKG-CONFLICT-4
+         * opkg_install_cmd: Cannot install package OPKG-CONFLICT-4.
+
+    apk error formats:
+
+    Case apk-1
+        ERROR: unable to select packages:
+          APK-MISSING (no such package):
+            required by: world[APK-MISSING]
+
+    Case apk-2
+        ERROR: unable to select packages:
+          APK-CONFLICT-1:
+            conflicts: APK-CONFLICT-2[nftables=1.1.6-r1]
+            satisfies: world[nftables-json]
+                       blah[nftables]
+          APK-CONFLICT-2:
+            conflicts: APK-CONFLICT-1[nftables=1.1.6-r1]
+            satisfies: world[nftables-nojson]
+
+    Case apk-3
+        ERROR: APK-CONFLICT-3: trying to overwrite somefile owned by APK-CONFLICT-4.
+    """
+
+    # Grab the missing ones first, as that's easy.
+    missing = set(
+        findall(r"Cannot install package ([^ ]+)\.", stderr)  # Case opkg-1
+        + findall(r" ([^ ]+) \(no such package\)", stderr)  # Case apk-1
+    )
+
+    # Conflicts are grouped in apk, so need to be flattened.
+    # Case apk-2
+    conflicts = findall(r"\n +([^:\n]+):\n +conflicts: ([^[]+)", stderr, DOTALL)
+    conflicts = set(item for pair in conflicts for item in pair)
+
+    # Case opkg-2, opkg-3, apk-3
+    conflicts.update(
+        findall(r"check_data_file_clashes: Package ([^ ]+) wants to", stderr)
+        + findall(r"is already provided by package  \* ([^ ]+)$", stderr, MULTILINE)
+        + findall(r"\* check_conflicts_for:.+ ([^ ]+)(?: \*|:)$", stderr, MULTILINE)
+        + findall(r"ERROR: ([^ ]+): trying to overwrite", stderr)
+        + findall(r"trying to overwrite .* owned by ([^ ]+)\.", stderr)
+    )
+
+    # opkg reports missing and conflicts with same message, so clean that up.
+    # If it's conflicting, remove it from missing...
+    missing.difference_update(conflicts)
+
+    pkg_list = ":" if missing or conflicts else ""
+    if missing:
+        pkg_list += " missing (" + ", ".join(sorted(missing)) + ")"
+    if conflicts:
+        pkg_list += " conflicts (" + ", ".join(sorted(conflicts)) + ")"
+    return f"Impossible package selection{pkg_list}"
 
 
 def parse_packages_file(url: str) -> dict[str, str]:
@@ -575,3 +660,65 @@ def reload_profiles(app: FastAPI, version: str, target: str) -> bool:
     }
 
     return True
+
+
+class ErrorLog:
+    """Redis-backed error log for build failures.
+
+    Stores errors in a Redis list for access from any worker or server.
+    Entries are capped at MAX_ENTRIES to bound memory usage.
+
+    Log format is intentionally minimal and anonymized to protect user privacy:
+        timestamp version:target:profile error_message
+    """
+
+    REDIS_KEY = "build:errors"
+    MAX_ENTRIES = 5000
+
+    def log_build_error(self, build_request: BuildRequest, error_message: str) -> None:
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        clean_error = sub(r"[0-9a-f]{64}", r"[job-id]", error_message)
+        clean_error = " ".join(clean_error.split())[:200]
+        profile_info = (
+            f"{build_request.version}:{build_request.target}:{build_request.profile}"
+        )
+        entry = f"{timestamp} {profile_info} {clean_error}"
+
+        try:
+            rc = get_redis_client()
+            rc.lpush(self.REDIS_KEY, entry)
+            rc.ltrim(self.REDIS_KEY, 0, self.MAX_ENTRIES - 1)
+        except Exception:
+            log.warning(f"Failed to log build error to Redis: {entry}")
+
+    def get_entries(self, n_entries: int = 100) -> list[str]:
+        try:
+            rc = get_redis_client()
+            entries = rc.lrange(self.REDIS_KEY, 0, n_entries - 1)
+            return [e.decode() if isinstance(e, bytes) else e for e in entries]
+        except Exception:
+            return []
+
+    def get_summary(self, n_entries: int = 100) -> str:
+        entries = self.get_entries(n_entries)
+        if not entries:
+            return "No build errors recorded."
+
+        first_time = entries[-1].split(" ", 2)[0:2]
+        last_time = entries[0].split(" ", 2)[0:2]
+        first_ts = " ".join(first_time) if len(first_time) == 2 else "unknown"
+        last_ts = " ".join(last_time) if len(last_time) == 2 else "unknown"
+
+        lines = [
+            f"Build Errors: {len(entries)} entries",
+            f"Time range: {first_ts} to {last_ts}",
+            "",
+            "Recent errors:",
+            "-" * 60,
+        ]
+        lines.extend(entries)
+        return "\n".join(lines)
+
+
+# Module-level singleton instance
+error_log = ErrorLog()

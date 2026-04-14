@@ -1,0 +1,2 @@
+upstream_url = "http://cache"
+log_level = "DEBUG"

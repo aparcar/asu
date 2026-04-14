@@ -72,21 +72,11 @@
                     </ul>
 
                     {% if server_stats %}
-                    <div class="grid-item">
-                        <h2>Builds per Day (last 30 days)</h2>
-                        <canvas id="buildsChart" width="600" height="300"></canvas>
-                    </div>
-                    <div class="grid-item">
-                        <h2>Weekly build counts by branch (last 6 months)
-                            <select name="branchName" id="branchName" onchange="loadVersions()">
-                                <option value="">All</option>
-                                {% for branch in branches %}
-                                <option value="{{ branch }}">{{ branch }}</option>
-                                {%- endfor -%}
-                            </select>
-                        </h2>
-                        <canvas id="versionChart" width="600" height="300"></canvas>
-                    </div>
+                    <p>
+                        <b>Queue length:</b> <span id="queue-length">...</span> |
+                        <b>Builds (24h):</b> <span id="builds-24h">...</span> |
+                        <a href="/stats">Detailed statistics</a>
+                    </p>
                     {% endif %}
 
                     <details>
@@ -110,60 +100,45 @@
                     </p>
 
                     </details>
+
+                    <details id="build-errors-details">
+                        <summary><h2>Build Errors</h2></summary>
+                        <p>Recent build failures to help diagnose upstream imagebuilder and package issues.</p>
+                        <pre id="build-errors-content" class="error-log">Click to load...</pre>
+                    </details>
                 </div>
             </div>
         </div>
 
-{% if server_stats %}
-        <script src="static/chart.js"></script>
         <script>
-            async function loadChart(chartSource, canvas) {
-                const response = await fetch(`/api/v1/${chartSource}`);
-                const data = await response.json();
+            (function() {
+                const details = document.getElementById("build-errors-details");
+                const content = document.getElementById("build-errors-content");
+                let loaded = false;
 
-                const oldChart = Chart.getChart(canvas);
-                if (oldChart !== undefined) {
-                    oldChart.destroy();
-                }
-
-                const countChart = new Chart(document.getElementById(canvas), {
-                    type: "line",
-                    data: {
-                        labels: data.labels,
-                        datasets: data.datasets.map(ds => ({
-                            data: ds.data,
-                            label: ds.label,
-                            backgroundColor: ds.color,
-                            borderColor: ds.color,
-                            borderJoinStyle: "round",
-                            fill: false
-                        }))
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            x: { display: false },
-                            y: { display: true }
-                        },
-                        plugins: {
-                            legend: { display: true },
-                            title:  { display: false }
+                details.addEventListener("toggle", async function() {
+                    if (details.open && !loaded) {
+                        content.textContent = "Loading...";
+                        try {
+                            const response = await fetch("/api/v1/build-errors");
+                            content.textContent = await response.text();
+                            loaded = true;
+                        } catch (error) {
+                            content.textContent = "Failed to load: " + error.message;
                         }
                     }
                 });
-            }
+            })();
+        </script>
 
-            loadChart("builds-per-day", "buildsChart");
-
-            function loadVersions() {
-                let branch = document.getElementById("branchName").value;
-                if (branch != "") {
-                    branch = `?branch=${branch}`;
-                }
-                loadChart(`builds-by-version${branch}`, "versionChart");
-            }
-
-            loadVersions();
+{% if server_stats %}
+        <script>
+            fetch("/api/v1/stats/summary")
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById("queue-length").textContent = data.queue_length;
+                    document.getElementById("builds-24h").textContent = data.builds_24h;
+                });
         </script>
 {% endif %}
 

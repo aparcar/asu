@@ -1,8 +1,9 @@
 from datetime import datetime as dt, timedelta, UTC
 
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 
-from asu.util import get_redis_ts
+from asu.util import error_log, get_queue, get_redis_ts
 
 router = APIRouter()
 
@@ -24,6 +25,33 @@ def start_stop(duration, interval):
     labels = [str(dt.fromtimestamp(stamp // 1000, UTC))[:10] + "Z" for stamp in stamps]
 
     return start, stop, stamps, labels
+
+
+@router.get("/stats/summary")
+def get_stats_summary() -> dict:
+    """Return queue length and builds in last 24 hours."""
+    ts = get_redis_ts()
+    rc = ts.client
+
+    now = int(dt.now(UTC).timestamp() * 1000)
+    day_ago = now - DAY_MS
+
+    builds_24h = 0
+    key = "stats:build:successes"
+    if rc.exists(key):
+        result = ts.range(
+            key,
+            from_time=day_ago,
+            to_time=now,
+            aggregation_type="sum",
+            bucket_size_msec=DAY_MS,
+        )
+        builds_24h = int(sum(v for _, v in result))
+
+    return {
+        "queue_length": len(get_queue()),
+        "builds_24h": builds_24h,
+    }
 
 
 @router.get("/builds-per-day")
@@ -120,3 +148,55 @@ def get_builds_by_version(branch: str = None) -> dict():
             for version in sorted(bucket)
         ],
     }
+
+
+@router.get("/top-packages")
+def get_top_packages(branch: str = None, n: int = 30) -> dict:
+    """Return the most requested packages, optionally filtered by branch."""
+    n = min(n, 100)
+    interval = N_DAYS * DAY_MS
+
+    start, stop, stamps, labels = start_stop(N_DAYS, DAY_MS)
+
+    filters = ["stats=packages"]
+    if branch:
+        filters.append(f"branch={branch}")
+
+    result = get_redis_ts().mrange(
+        filters=filters,
+        with_labels=True,
+        from_time=start,
+        to_time=stop,
+        aggregation_type="sum",
+        bucket_size_msec=interval,
+    )
+
+    packages = {}
+    for row in result:
+        for data in row.values():
+            pkg = data[0].get("package", "unknown")
+            total = sum(v for _, v in data[1])
+            packages[pkg] = packages.get(pkg, 0) + total
+
+    sorted_packages = sorted(packages.items(), key=lambda x: x[1], reverse=True)[:n]
+
+    return {
+        "packages": [
+            {"name": name, "count": int(count)} for name, count in sorted_packages
+        ],
+        "branch": branch,
+        "days": N_DAYS,
+    }
+
+
+@router.get("/build-errors", response_class=PlainTextResponse)
+def get_build_errors(n: int = 100) -> str:
+    """Return a summary of recent build errors.
+
+    Args:
+        n: Maximum number of entries to return (default 100, max 500)
+
+    Returns:
+        Plain text summary of build errors
+    """
+    return error_log.get_summary(min(n, 500))

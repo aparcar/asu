@@ -6,11 +6,11 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     command: uv run uvicorn --host 0.0.0.0 asu.main:app
-    env_file: .env
     environment:
       REDIS_URL: "redis://redis:6379/0"
     volumes:
-      - $PUBLIC_PATH/store:$PUBLIC_PATH/store:ro
+      - ./asu.toml:/app/asu.toml:ro
+      - ./public/store:/public/store:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -23,12 +23,12 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     command: uv run rqworker --logging_level INFO
-    env_file: .env
     environment:
       REDIS_URL: "redis://redis:6379/0"
     volumes:
-      - $PUBLIC_PATH:$PUBLIC_PATH:rw
-      - $CONTAINER_SOCKET_PATH:$CONTAINER_SOCKET_PATH:rw
+      - ./asu.toml:/app/asu.toml:ro
+      - ./public:/public:rw
+      - ./podman.sock:/var/podman.sock:rw
     depends_on:
       - redis
 
@@ -37,45 +37,13 @@ services:
     restart: unless-stopped
     volumes:
       - ./redis-data:/data/:rw
-    ports:
-      - "127.0.0.1:6379:6379"
 
-  # Optionally add more workers
-  # worker2:
-  #   image: "docker.io/openwrt/asu:latest"
-  #   restart: unless-stopped
-  #   command: rqworker --logging_level INFO
-  #   env_file: .env
-  #   environment:
-  #    REDIS_URL: "redis://redis:6379/0"
-  #   volumes:
-  #     - $PUBLIC_PATH:$PUBLIC_PATH:rw
-  #     - $CONTAINER_SOCKET_PATH:$CONTAINER_SOCKET_PATH:rw
-  #   depends_on:
-  #     - redis
-  #
-  # Optionally add a Squid cache container when using `SQUID_CACHE`
-  # squid:
-  #   image: "docker.io/ubuntu/squid:latest"
-  #   restart: unless-stopped
-  #   ports:
-  #     - "127.0.0.1:3128:3128"
-  #   volumes:
-  #     - ".squid.conf:/etc/squid/conf.d/snippet.conf:ro"
-  #     - "./squid-data/:/var/spool/squid/:rw"
+  # Optional: caching proxy for upstream package downloads.
+  # Enable with: podman-compose -f podman-compose.yml -f podman-compose.cache.yml up -d
+  # and set upstream_url = "http://cache" in asu.toml.
 
-  # Optionally add a Grafana container when using `SERVER_STATS`
-  # grafana:
-  #   image: docker.io/grafana/grafana-oss
-  #   container_name: grafana
-  #   restart: unless-stopped
-  #   ports:
-  #     - "127.0.0.1:3000:3000"
-  #   depends_on:
-  #     - redis
-  #   environment:
-  #     GF_SERVER_DOMAIN: sysupgrade.openwrt.org
-  #     GF_SERVER_ROOT_URL: https://sysupgrade.openwrt.org/stats/
-  #     GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-  #   volumes:
-  #     - ./grafana-data:/var/lib/grafana
+networks:
+  # Isolated network for build containers. Has internet access but
+  # cannot reach Redis or other compose services.
+  asu-build:
+    external: true

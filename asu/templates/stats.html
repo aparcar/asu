@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>OpenWrt Sysupgrade Server - Statistics</title>
+        <link href="/static/style.css" rel="stylesheet" />
+    </head>
+    <body>
+        <header>
+            <div>
+                <a href="/"><img src="/static/logo.png" alt="OpenWrt Firmware logo" /></a>
+            </div>
+        </header>
+        <div class="container">
+            <h1><a href="/" style="color:inherit">Sysupgrade Server</a> - Statistics</h1>
+
+            <div class="grid-container">
+                <div class="grid-item">
+                    <h2>Builds per Day (last 30 days)</h2>
+                    <canvas id="buildsChart" width="600" height="300"></canvas>
+                </div>
+                <div class="grid-item">
+                    <h2>Weekly build counts by branch (last 6 months)
+                        <select name="branchName" id="branchName" onchange="loadVersions()">
+                            <option value="">All</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch }}">{{ branch }}</option>
+                            {%- endfor -%}
+                        </select>
+                    </h2>
+                    <canvas id="versionChart" width="600" height="300"></canvas>
+                </div>
+                <div class="grid-item">
+                    <h2>Top Packages (last 30 days)
+                        <select id="packageBranch" onchange="loadPackages()">
+                            <option value="">All</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch }}">{{ branch }}</option>
+                            {%- endfor -%}
+                        </select>
+                    </h2>
+                    <table id="packagesTable" class="packages-table">
+                        <thead><tr><th>Package</th><th>Requests</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/chart.js"></script>
+        <script>
+            async function loadChart(chartSource, canvas) {
+                const response = await fetch(`/api/v1/${chartSource}`);
+                const data = await response.json();
+
+                const oldChart = Chart.getChart(canvas);
+                if (oldChart !== undefined) {
+                    oldChart.destroy();
+                }
+
+                const countChart = new Chart(document.getElementById(canvas), {
+                    type: "line",
+                    data: {
+                        labels: data.labels,
+                        datasets: data.datasets.map(ds => ({
+                            data: ds.data,
+                            label: ds.label,
+                            backgroundColor: ds.color,
+                            borderColor: ds.color,
+                            borderJoinStyle: "round",
+                            fill: false
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { display: false },
+                            y: { display: true }
+                        },
+                        plugins: {
+                            legend: { display: true },
+                            title:  { display: false }
+                        }
+                    }
+                });
+            }
+
+            loadChart("builds-per-day", "buildsChart");
+
+
+            function loadVersions() {
+                let branch = document.getElementById("branchName").value;
+                if (branch != "") {
+                    branch = `?branch=${branch}`;
+                }
+                loadChart(`builds-by-version${branch}`, "versionChart");
+            }
+
+            loadVersions();
+
+            async function loadPackages() {
+                let branch = document.getElementById("packageBranch").value;
+                let url = "/api/v1/top-packages";
+                if (branch) url += `?branch=${branch}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const tbody = document.querySelector("#packagesTable tbody");
+                tbody.innerHTML = data.packages.map(p =>
+                    `<tr><td>${p.name}</td><td>${p.count}</td></tr>`
+                ).join("");
+            }
+
+            loadPackages();
+        </script>
+
+    </body>
+</html>

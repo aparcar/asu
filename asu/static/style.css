@@ -117,7 +117,7 @@ header > div {
     color: #fff;
 }
 
-header > div > img {
+header > div img {
     height: 3em;
     padding: 0.75em;
 }
@@ -337,4 +337,135 @@ td {
     /* border: 1px solid lightgrey; */
     margin: 2px;
     width: 1fr;
+}
+
+details {
+    margin-top: 1.5em;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.5em 1em;
+    background: #fafafa;
+}
+
+details summary {
+    cursor: pointer;
+    user-select: none;
+}
+
+details summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 1.2em;
+}
+
+details[open] summary {
+    margin-bottom: 0.5em;
+}
+
+.error-log {
+    background: #1a1a1a;
+    color: #c0c0c0;
+    padding: 1em;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.8em;
+    line-height: 1.5;
+    max-width: 800px;
+    max-height: 400px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #0d1117;
+        color: #c9d1d9;
+    }
+
+    a {
+        color: #58a6ff;
+    }
+
+    header {
+        background-color: #001a2e;
+        box-shadow: 0 0.125em 0.25em rgba(0, 0, 0, 0.4);
+    }
+
+    .container {
+        color: #c9d1d9;
+    }
+
+    h1, h2, h3 {
+        color: #e6edf3;
+    }
+
+    code {
+        background: #161b22;
+        color: #79c0ff;
+        padding: 0.15em 0.4em;
+        border-radius: 3px;
+    }
+
+    #versions {
+        background-color: #161b22;
+        color: #c9d1d9;
+        border-color: #30363d;
+    }
+
+    select {
+        background-color: #161b22;
+        color: #c9d1d9;
+        border: 1px solid #30363d;
+    }
+
+    .autocomplete > input {
+        background-color: #161b22;
+        color: #c9d1d9;
+        border-color: #30363d;
+    }
+
+    .autocomplete-items div {
+        background-color: #161b22;
+        border-bottom-color: #30363d;
+    }
+
+    .autocomplete-items div:hover {
+        background-color: #1c2128;
+    }
+
+    details {
+        background: #161b22;
+        border-color: #30363d;
+    }
+
+    table {
+        box-shadow: 0 0 0.5em rgba(0, 0, 0, 0.5);
+    }
+
+    th {
+        background: #001a2e;
+    }
+
+    tr {
+        background: #0d1117;
+    }
+
+    tr:hover {
+        background: #161b22;
+    }
+
+    tr:nth-child(2n + 1) {
+        background: #111820;
+    }
+
+    th, td {
+        border-bottom-color: #21262d;
+    }
+
+    .flex-item {
+        background-color: #161b22;
+        border-color: #30363d;
+    }
 }

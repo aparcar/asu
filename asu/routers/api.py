@@ -8,6 +8,7 @@ from rq.job import Job
 from asu.build import build
 from asu.build_request import BuildRequest
 from asu.config import settings
+from asu.repositories import is_repo_allowed
 from asu.util import (
     add_timestamp,
     add_build_event,
@@ -87,6 +88,10 @@ def validate_request(
 
     if build_request.defaults and not settings.allow_defaults:
         return validation_failure("Handling `defaults` not enabled on server")
+
+    for url in build_request.repositories.values():
+        if not is_repo_allowed(url, settings.repository_allow_list):
+            return validation_failure(f"Repository not allowed: {url}")
 
     if build_request.distro not in get_distros():
         return validation_failure(f"Unsupported distro: {build_request.distro}")
@@ -217,9 +222,12 @@ def api_v1_build_post(
     request_hash: str = get_request_hash(build_request)
     job: Job = get_queue().fetch_job(request_hash)
     status: int = 200
-    result_ttl: str = settings.build_ttl
     if build_request.defaults:
         result_ttl = settings.build_defaults_ttl
+    elif build_request.packages_versions:
+        result_ttl = settings.build_ttl
+    else:
+        result_ttl = settings.build_ttl_unversioned
     failure_ttl: str = settings.build_failure_ttl
 
     if build_request.client:

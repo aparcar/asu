@@ -1,0 +1,38 @@
+# ASU Server Configuration
+#
+# Copy to asu.toml and adjust. Environment variables and .env
+# override values set here.
+
+upstream_url = "https://downloads.openwrt.org"
+allow_defaults = false
+log_level = "INFO"
+
+# Container settings
+base_container = "ghcr.io/openwrt/imagebuilder"
+
+# Caching proxy: uncomment to route package downloads through nginx cache
+# upstream_url = "http://cache"
+
+# Build cache TTLs
+build_ttl = "7d"
+build_ttl_unversioned = "24h"
+build_defaults_ttl = "30m"
+build_failure_ttl = "1h"
+max_pending_jobs = 200
+job_timeout = "10m"
+
+# S3 storage (optional, default is local)
+# store_backend = "s3"
+# s3_endpoint = "https://s3.example.com"
+# s3_access_key = ""
+# s3_secret_key = ""
+# s3_bucket = "asu-store"
+# s3_region = "auto"
+# s3_public_url = "https://cdn.example.com"
+
+# Allowed external repository URL prefixes
+# repository_allow_list = [
+#     "https://raw.githubusercontent.com/libremesh/",
+#     "https://feed.libremesh.org/",
+#     "https://buildbot.weimarnetz.de/",
+# ]

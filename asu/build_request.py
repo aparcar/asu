@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -7,6 +7,8 @@ from asu.config import settings
 STRING_PATTERN = r"^[\w.,-]*$"
 TARGET_PATTERN = r"^[\w]*/[\w]*$"
 PKG_VERSION_PATTERN = r"^[\w+.,~-]*$"
+REPO_NAME_PATTERN = r"^[\w.-]+$"
+REPO_URL_PATTERN = r"^https?://\S+$"
 
 
 class BuildRequest(BaseModel):
@@ -135,13 +137,27 @@ class BuildRequest(BaseModel):
         ),
     ] = None
     repositories: Annotated[
-        dict[str, str],
+        dict[
+            Annotated[str, Field(pattern=REPO_NAME_PATTERN)],
+            Annotated[str, Field(pattern=REPO_URL_PATTERN)],
+        ],
         Field(
             description="""
                 Additional repositories for user packages.
             """.strip()
         ),
     ] = {}
+    repositories_mode: Annotated[
+        Literal["append", "replace"],
+        Field(
+            description="""
+                How to apply the requested repositories (only used when
+                `repositories` is non-empty):
+                - `append`: merge into existing ImageBuilder repositories
+                - `replace`: replace existing repositories entirely (default)
+            """.strip()
+        ),
+    ] = "replace"
     repository_keys: Annotated[
         list[str],
         Field(

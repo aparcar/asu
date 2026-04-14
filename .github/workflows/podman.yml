@@ -18,28 +18,29 @@ env:
   LOG_LEVEL: DEBUG
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  direct:
+    runs-on: ubuntu-24.04
 
-    name: podman-compose integration test
+    name: podman-compose
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ImageBuilder prereqs
-        run: sudo apt-get install -y podman-compose jq
+      - name: Install prereqs
+        run: sudo apt-get install -y jq
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Build the containers
         run: |
-          podman-compose build
+          uv run podman-compose build
 
       - name: Start the containers
         run: |
-          export CONTAINER_SOCKET_PATH="/tmp/podman.sock"
-          podman system service --time=0 "unix://$CONTAINER_SOCKET_PATH" &
-          echo "PUBLIC_PATH=$(pwd)/public" > .env
-          echo "CONTAINER_SOCKET_PATH=$CONTAINER_SOCKET_PATH" >> .env
-          podman-compose up -d
+          podman network create asu-build
+          podman system service --time=0 "unix://$(pwd)/podman.sock" &
+          uv run podman-compose up -d
 
       - name: Let the containers start
         run: sleep 30
@@ -55,7 +56,7 @@ jobs:
             curl 'http://localhost:8000/api/v1/build' \
               --request 'POST' \
               --header 'Content-Type: application/json' \
-              --data @tests/ci/openwrt-one-24.10.0.json | tee response.json | jq
+              --data @tests/ci/openwrt-one-25.12.2.json | tee response.json | jq
             if [ "$(jq -r '.status' response.json)" -eq 200 ]; then
               break
             fi
@@ -64,3 +65,57 @@ jobs:
             fi
             sleep 10
           done
+
+  cached:
+    runs-on: ubuntu-latest
+
+    name: podman-compose with nginx cache
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prereqs
+        run: sudo apt-get install -y jq
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build the containers
+        run: |
+          uv run podman-compose build
+
+      - name: Start the containers with cache
+        run: |
+          podman network create asu-build
+          podman system service --time=0 "unix://$(pwd)/podman.sock" &
+          cp tests/ci/asu-cache.toml asu.toml
+          uv run podman-compose -f podman-compose.yml -f podman-compose.cache.yml up -d
+
+      - name: Let the containers start
+        run: sleep 30
+
+      - name: Test startup
+        run: |
+          curl -s http://localhost:8000/api/v1/stats | tee response.json | jq
+          [ "$(jq -r '.queue_length' response.json)" -eq 0 ] || exit 1
+
+      - name: Test build (first request, cache miss)
+        run: |
+          for i in {1..20}; do
+            curl 'http://localhost:8000/api/v1/build' \
+              --request 'POST' \
+              --header 'Content-Type: application/json' \
+              --data @tests/ci/openwrt-one-25.12.2.json | tee response.json | jq
+            if [ "$(jq -r '.status' response.json)" -eq 200 ]; then
+              break
+            fi
+            if [ $i -eq 20 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Verify cache was used
+        run: |
+          uv run podman-compose -f podman-compose.yml -f podman-compose.cache.yml logs cache 2>&1 | tee cache.log
+          grep -q "downloads.openwrt.org" cache.log

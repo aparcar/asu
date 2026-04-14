@@ -1,5 +1,4 @@
-import shutil
-import tempfile
+import logging
 from pathlib import Path
 
 import pytest
@@ -8,6 +7,8 @@ from rq import Queue
 from fastapi.testclient import TestClient
 
 from asu.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def redis_load_mock_data(redis):
@@ -83,10 +84,8 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def test_path():
-    test_path = tempfile.mkdtemp(dir=Path.cwd() / "tests")
-    yield test_path
-    shutil.rmtree(test_path)
+def test_path(tmp_path):
+    return str(tmp_path)
 
 
 @pytest.fixture
@@ -97,7 +96,11 @@ def app(redis_server, test_path, monkeypatch, upstream):
     def mocked_redis_queue():
         return Queue(connection=redis_server, is_async=settings.async_queue)
 
+    saved_upstream_url = settings.upstream_url
+    saved_repository_allow_list = settings.repository_allow_list
+
     settings.public_path = Path(test_path) / "public"
+    settings.store_backend = "local"
     settings.async_queue = False
     settings.upstream_url = "http://localhost:8123"
     settings.server_stats = "stats"
@@ -116,10 +119,23 @@ def app(redis_server, test_path, monkeypatch, upstream):
 
     yield real_app
 
+    settings.upstream_url = saved_upstream_url
+    settings.repository_allow_list = saved_repository_allow_list
+
+
+class DebugTestClient(TestClient):
+    """TestClient that logs response body for error responses."""
+
+    def request(self, *args, **kwargs):
+        response = super().request(*args, **kwargs)
+        if response.status_code >= 400:
+            logger.error("Response %d: %s", response.status_code, response.text)
+        return response
+
 
 @pytest.fixture
 def client(app, upstream):
-    yield TestClient(app)
+    yield DebugTestClient(app, raise_server_exceptions=True)
 
 
 @pytest.fixture(scope="session")

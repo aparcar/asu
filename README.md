@@ -115,10 +115,11 @@ The services are configured via environment variables, which can be set in a
 `.env` file
 
 ```bash
-echo "PUBLIC_PATH=$(pwd)/public" > .env
-echo "CONTAINER_SOCKET_PATH=/run/user/$(id -u)/podman/podman.sock" >> .env
-# optionally allow custom scripts running on first boot
-echo "ALLOW_DEFAULTS=1" >> .env
+# symlink the podman socket into the asu directory
+ln -sf /run/user/$(id -u)/podman/podman.sock podman.sock
+
+# create isolated network for build containers (no access to Redis)
+podman network create asu-build
 ```
 
 Now it's possible to run all services via `podman-compose`:
@@ -185,6 +186,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies
 uv sync --extra dev
+```
+
+#### Running Redis
+
+```bash
+podman run -d --name redis -p 6379:6379 redis:alpine
 ```
 
 #### Running the server
