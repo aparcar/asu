@@ -436,12 +436,14 @@ def test_api_build_empty_packages_list(client):
 
 
 @pytest.mark.slow
-def test_api_build_conflicting_packages(client):
+def test_api_build_conflicting_packages(app):
     """Use real build to get proper context for conflicts."""
+    settings.upstream_url = "https://downloads.openwrt.org"
+    client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
-            version="23.05.5",
+            version="25.12.2",
             target="ath79/generic",
             profile="8dev_carambola2",
             packages=["dnsmasq", "dnsmasq-full"],
@@ -501,12 +503,13 @@ def test_api_build_empty_request(client):
 
 @pytest.mark.slow
 def test_api_build_real_x86(app):
+    settings.upstream_url = "https://downloads.openwrt.org"
     client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
         ),
@@ -520,7 +523,7 @@ def test_api_build_real_x86(app):
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
             filesystem="ext4",
@@ -534,12 +537,13 @@ def test_api_build_real_x86(app):
 
 @pytest.mark.slow
 def test_api_build_real_ath79(app):
+    settings.upstream_url = "https://downloads.openwrt.org"
     client = TestClient(app)
     response = client.post(
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="8dev,carambola2",  # Test unsanitized profile.
         ),
@@ -553,7 +557,7 @@ def test_api_build_real_ath79(app):
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="25.12.2",
             packages=["tmux", "vim"],
             profile="8dev_carambola2",
             filesystem="squashfs",
