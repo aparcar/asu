@@ -96,6 +96,9 @@ def app(redis_server, test_path, monkeypatch, upstream):
     def mocked_redis_queue():
         return Queue(connection=redis_server, is_async=settings.async_queue)
 
+    saved_upstream_url = settings.upstream_url
+    saved_repository_allow_list = settings.repository_allow_list
+
     settings.public_path = Path(test_path) / "public"
     settings.store_backend = "local"
     settings.async_queue = False
@@ -115,6 +118,9 @@ def app(redis_server, test_path, monkeypatch, upstream):
     from asu.main import app as real_app
 
     yield real_app
+
+    settings.upstream_url = saved_upstream_url
+    settings.repository_allow_list = saved_repository_allow_list
 
 
 class DebugTestClient(TestClient):

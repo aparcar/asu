@@ -436,8 +436,8 @@ def test_api_build_empty_packages_list(client):
 
 
 @pytest.mark.slow
-def test_api_build_conflicting_packages(app):
-    """Use real build to get proper context for conflicts."""
+def test_api_build_missing_package(app):
+    """Use real build to get proper error for missing packages."""
     settings.upstream_url = "https://downloads.openwrt.org"
     client = TestClient(app)
     response = client.post(
@@ -446,16 +446,13 @@ def test_api_build_conflicting_packages(app):
             version="25.12.2",
             target="ath79/generic",
             profile="8dev_carambola2",
-            packages=["dnsmasq", "dnsmasq-full"],
+            packages=["this-package-does-not-exist"],
         ),
     )
 
     assert response.status_code == 500
     data = response.json()
-    assert (
-        data["detail"]
-        == "Error: Impossible package selection: conflicts (dnsmasq, dnsmasq-full)"
-    )
+    assert "this-package-does-not-exist" in data["detail"]
 
 
 def test_api_build_without_packages_list(client):
@@ -649,7 +646,7 @@ def test_api_build_bad_version(client):
     response = client.post(
         "/api/v1/build",
         json=dict(
-            version="19.07.2",
+            version="99.99.99",
             target="testtarget/testsubtarget",
             profile="testprofile",
             packages=["test1", "test2"],
@@ -657,7 +654,7 @@ def test_api_build_bad_version(client):
     )
     assert response.status_code == 400
     data = response.json()
-    assert data["detail"] == "Unsupported version: 19.07.2"
+    assert data["detail"] == "Unsupported branch: 99.99.99"
 
 
 def test_api_build_bad_profile(client):
