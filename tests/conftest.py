@@ -123,9 +123,7 @@ class DebugTestClient(TestClient):
     def request(self, *args, **kwargs):
         response = super().request(*args, **kwargs)
         if response.status_code >= 400:
-            logger.error(
-                "Response %d: %s", response.status_code, response.text
-            )
+            logger.error("Response %d: %s", response.status_code, response.text)
         return response
 
 

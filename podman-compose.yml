@@ -39,18 +39,8 @@ services:
       - ./redis-data:/data/:rw
 
   # Optional: caching proxy for upstream package downloads.
-  # Build containers on the "asu-build" network reach the cache by
-  # hostname. To enable, uncomment and set upstream_url = "http://cache"
-  # in asu.toml.
-  #
-  # cache:
-  #   image: "docker.io/library/nginx:alpine"
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./misc/nginx-cache.conf:/etc/nginx/conf.d/default.conf:ro
-  #     - ./cache-data:/var/cache/nginx:rw
-  #   networks:
-  #     - asu-build
+  # Enable with: podman-compose -f podman-compose.yml -f podman-compose.cache.yml up -d
+  # and set upstream_url = "http://cache" in asu.toml.
 
 networks:
   # Isolated network for build containers. Has internet access but
