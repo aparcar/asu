@@ -198,6 +198,7 @@ def _build(build_request: BuildRequest, job=None):
         cap_drop=["all"],
         no_new_privileges=True,
         privileged=False,
+        network_mode="bridge",
         networks={"asu-build": {}},
         environment=environment,
         image_volume_mode="ignore",
